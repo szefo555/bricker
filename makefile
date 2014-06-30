@@ -1,7 +1,8 @@
 WARN = -Wall -Wextra -Werror -Wconversion
 CFLAGS = -std=c99 -O3
 LDFLAGS = -lm
-OBJECTS = bricker.o
+HEADERS = io.h
+OBJECTS = bricker.o io.o
 
 all: bricker
 
@@ -12,4 +13,4 @@ bricker: $(OBJECTS)
 	$(CC) -g $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o bricker
 
 clean:
-	rm -f *.o bricker stdout stderr
+	rm -f *.o bricker stdout stderr *.raw
