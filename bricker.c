@@ -1,269 +1,170 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <strings.h>
 #include "io.h"
-/*
-every voxel 1byte
-engine 256x256x128
-nucleon 41x41x41
-fuel 64x64x64
+#include "read.h"
+
+/* 
+
+Start with:	/bricker x y z brick_dimension^3 ghostcelldimension filename
+fuel 64^3
 */
 
-
-void printArr(size_t *arr, size_t size)
+/* how many bricks are needed? */
+size_t NBricks(const size_t VOLUME[3], const size_t BRICKSIZE) 
 {
-	for(size_t i=0; i<size; i++) {
-		for(size_t j=0; j<size; j++) {
-			for(size_t k=0; k<size; k++) {
-				size_t idx = i*size*size+j*size+k;
-				if(arr[idx] < 10) {
-				printf("0%d ",arr[idx]);
-				} else {
-				printf("%d ", arr[idx]);
-				}
-			}
-		printf("\n");
-		}
-	printf("\n");
-	}
-}
+	size_t nobricks[3] = {0,0,0};
+	if(VOLUME[0] < BRICKSIZE || VOLUME[1] < BRICKSIZE || VOLUME[2] < BRICKSIZE) 
+		return 0;
 
-void printArr2(size_t *arr, size_t size_c) {
-	size_t ct = 0;
-	size_t ctt = 0;
-	size_t cttt = 0;
-	for (size_t i=0; i<size_c; i++) {
-		size_t idx = i;
-		if(arr[idx] < 10) {
-		printf("0%d ",arr[idx]);
-		} else {
-		printf("%d ", arr[idx]);
-		}
-		ct++;
-		if(ct==4) {
-			printf("\n");
-			ct=0;
-			ctt++;
-		}		
-		if(ctt==4) {
-			printf("\n");
-			ctt=0;
-			cttt++;
-		}
-		if(cttt==4) {
-			printf("-------------+\n");
-			cttt=0;
+	for(size_t i=0; i<3; i++) {
+		nobricks[i] = VOLUME[i] / BRICKSIZE;
+		if(VOLUME[i] % BRICKSIZE != 0) {
+			nobricks[i]++;
 		}
 	}
+	printf("No Bricks : %d\n", nobricks[0]*nobricks[1]*nobricks[2]);
+	return nobricks[0]*nobricks[1]*nobricks[2];
 }
 
-
-/* voxel size
-* 1 for now */
-const size_t getBytes(){
+size_t GetBytes()
+{
 	return 1;
 }
 
-/* how many bricks are needed? */
-size_t nbricks(const size_t vol[3], size_t bsize[3], size_t nb[3])
+int main(int argc, char* argv[]) 
 {
-	if(vol[0] < bsize[0] || vol[1] < bsize[1] || vol[2] < bsize[2]) {
-		return -1;
-	}
-	for(size_t i=0; i<3; i++) {
-		nb[i] = vol[i] / bsize[i];
-		if(vol[i] % bsize[i] != 0) {
-			nb[i]++;
-		}
-	}
-	return 0;
-}
-
-/* subtract # of ghost cells from bricksize */
-size_t nbricksgc(size_t bs[3], const size_t gc)
-{
-	for(int i=0; i<3; i++) {
-		bs[i]-=gc;
-		if(bs[i]<1) return -1;
-	}
-	return 0;
-}
-
-void edge_padding(uint8_t *dest, size_t to, size_t n)
-{
-	//printf("Edge padding\n");
-	for(int i=0; i<n; i++) {
-		dest[to] = 0;
-		//printf("%d ", dest[to]);
-		to++;
-	}
-		//printf("\n");
-}
-
-/* edge[1] left; edge[0] right */
-void copyline(uint8_t *dest, uint8_t *src, size_t to, size_t from, size_t n, int edge[3]) {
-		n-=edge[1];
-		for(int i=edge[1]; i>0; i--) {
-			dest[to] = 0;
-			//printf("%d ", from);
-			to++;
-		}
-		if(edge[1] == 0) {
-			from--;
-		}
-		for(int i=0; i<n-edge[0]; i++) {
-			dest[to] = src[from];
-			//printf("%d ", from);
-			to++;
-			from++;
-		}
-		for(int i=n-edge[0]; i<n; i++) {
-			dest[to] = 0;
-			//printf("%d ", from);
-			to++;
-		}
-		//printf("\n");
-}
-
-void copyline_pad(uint8_t *dest, uint8_t *src, size_t to, size_t n) {
-		//printf("Copyline_pad\n");
-		for(size_t i=0; i<n; i++) {
-			dest[to] = 0;
-			//printf("%d ", dest[to]);
-			to++;
-		}
-		//printf("\n");
-}
-
-int main(int argc, char* argv[])
-{
-	/* init
-	* ./bricked vol_size^3 brick_dimension^3 ghostcelldim filename */
-	if(argc!=5) {
+	if(argc!=7) {
 		printf("Check input\n");
 		return EXIT_FAILURE;
 	}
 	char *endptr = NULL;
-	const size_t size = strtol(argv[1], &endptr, 10);
-	const size_t brickdim = strtol(argv[2], &endptr, 10);
-	const size_t ghostcelldim = strtol(argv[3], &endptr, 10);
-	const size_t size_c = size*size*size;
-	const size_t volume[3] = {size, size, size};
-
-	/*hard coded init*/
+	/* Size of the volume {x,y,z} */
+	const size_t VOLUME[3] = { strtol(argv[1], &endptr, 10), strtol(argv[2], &endptr, 10), strtol(argv[3], &endptr, 10) };
+	/* Dimension of the brick incl. ghostcell */
+	const size_t BRICKDIM = strtol(argv[4], &endptr, 10);
+	/* Size of ghost cells for later subtraction */	
+	const size_t GHOSTCELLDIM = strtol(argv[5], &endptr, 10);
+	/* subtract size of ghostcells*2 to get "real" size of bricks */
+	const size_t BRICKSIZE = BRICKDIM - GHOSTCELLDIM*2;
+	if(BRICKSIZE<1) {
+		printf("BRICKSIZE is smaller than 1!\n");	
+		return EXIT_FAILURE;
+	}
+	/* number of bricks? */
+	size_t numberofbricks = NBricks(VOLUME, BRICKSIZE);
+	if(numberofbricks == 0) {
+		printf("ERROR determining number of bricks!\n");
+		return EXIT_FAILURE;
+	}
+	printf("---> %d\n", numberofbricks);
+	/* Array where linear data is loaded; *1 == 1byte */
 	uint8_t *arr;
-	arr = malloc(sizeof(uint8_t)*size_c*1);
-	if(read_data(argv[4], size, arr) != 0) return EXIT_FAILURE;
-	/* */
+	arr = malloc(sizeof(uint8_t)*VOLUME[0]*VOLUME[1]*VOLUME[2]*1);
 
-	size_t bsize[3] = {brickdim, brickdim, brickdim};
-	size_t nb[3];
-	/* subtract ghost cells for number of bricks calculation */
-	/* x2 because we need both sides
-	* (left&&right, top&&bot, front&&back) */
-	if(nbricksgc(bsize, ghostcelldim*2) != 0) {
-		printf("ERROR determining brick size with ghost cells!\nCheck your input\n");
+	printf("%d %d %d %d %d\n", VOLUME[0],VOLUME[1],VOLUME[2],BRICKDIM,GHOSTCELLDIM);
+
+	if(read_data(argv[6], VOLUME, arr) != 0) {
+		printf("Error read file\n");
 		return EXIT_FAILURE;
 	}
-	if(nbricks(volume, bsize, nb) != 0) {
-		printf("ERROR determining brick size!\nCheck your input\n");
-		return EXIT_FAILURE;
-	}
-	const size_t no_bricks = nb[0]*nb[1]*nb[2];
-	printf("\nNumber of bricks:%d\nDimension without GC:%dx%dx%d\n", no_bricks, bsize[0], bsize[1], bsize[2]);
-
-	/* offset for parallel
-	* hardcoded here */
+	
+	/* offsets */ 
 	size_t offset[3] = {0,0,0};
-	size_t goffset[3] = {offset[0]-ghostcelldim, offset[1]-ghostcelldim, offset[2]-ghostcelldim};
-
-	/* original offset */
+	size_t goffset[3] = {offset[0]-GHOSTCELLDIM, offset[1]-GHOSTCELLDIM, offset[2]-GHOSTCELLDIM};
 	size_t orig_offset[3] = {offset[0], offset[1], offset[2]};
+	
+	/* get voxel size (in bytes) */
+	const size_t VOXELSIZE = GetBytes();
 
-	/* get voxel bytes */
-	const size_t vsize = getBytes();
-
-	/* main loop */
-	uint8_t *bricked;
-	size_t gbsize[3] = {bsize[0]+2*ghostcelldim, bsize[1]+2*ghostcelldim, bsize[2]+2*ghostcelldim};
+	/* full size of bricks (data+ghostcell*2) */
+	const size_t GBSIZE = BRICKSIZE+2*GHOSTCELLDIM;
 	/* scanline */
-	const size_t line = vsize * gbsize[0];
-	size_t bricked_size = gbsize[0]*gbsize[1]*gbsize[2]*no_bricks;
-	size_t counter = 0;
-	bricked = malloc(sizeof(uint8_t)*bricked_size);
+	const size_t LINE = VOXELSIZE * GBSIZE;
+	/* output array */
+	uint8_t *bricked;
+	bricked = malloc(sizeof(uint8_t)*GBSIZE*GBSIZE*GBSIZE * numberofbricks);
 
-	for(size_t no_b = 0; no_b<no_bricks; no_b++) {
+	/* MAIN LOOP */
+
+	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
 		offset[2] = orig_offset[2];
-		//printf("%d || %d %d %d\n", no_b,offset[0],offset[1],offset[2]);
+
 		/* x_edge left, y_edge top, z_edge front */
-		int start[3] = {offset[0]-ghostcelldim,offset[1]-ghostcelldim,offset[2]-ghostcelldim};
-		const int orig_start_y = start[1];
-		int edge[3] = {0,0,0};
+		int start[3] = {offset[0] - GHOSTCELLDIM, offset[1] - GHOSTCELLDIM, offset[2] - GHOSTCELLDIM};
+		const int ORIG_START_Y = start[1];
+
+		/* edge {x_edge left, x_edge right} */
+		int x_edge[2] = {0,0};
+		/* x_edge left */
+		if(start[0] < 0) 
+			x_edge[0] = start[0]*-1;
 		/* x_edge right */
-		if(offset[0]+gbsize[0]-ghostcelldim>=size) {
-			edge[0] = offset[0]+gbsize[0]-ghostcelldim-size;
-		}
-		if(start[0] < 0) {
-			edge[1] = start[0] * -1;
-		}
-		for(size_t z=0; z<gbsize[2]; z++) {
-			/* z pad */
+		if(offset[0]+GBSIZE-GHOSTCELLDIM >= VOLUME[0]) 
+			x_edge[1] = offset[0]+GBSIZE-GHOSTCELLDIM-VOLUME[0];
+
+		/* Z */
+		for(size_t z=0; z<GBSIZE; z++) {
+			/* z padding FRONT */
 			if(start[2] < 0) {
-				edge_padding(bricked, (z*gbsize[1]*gbsize[0])*vsize+no_b*gbsize[0]*gbsize[1]*gbsize[2], gbsize[0]*gbsize[1]);
-				start[2]++;
-			/* z pad */
-			} else  if (offset[2]>=size) {
-				edge_padding(bricked, (z*gbsize[1]*gbsize[0])*vsize+no_b*gbsize[0]*gbsize[1]*gbsize[2], gbsize[0]*gbsize[1]);
-			} else {
+				Padding(bricked, (z*GBSIZE*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE, GBSIZE*GBSIZE);
+				start[2] ++;
+			/* z padding BACK */
+			} else if (offset[2] >= VOLUME[2]) 
+				Padding(bricked, (z*GBSIZE*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE, GBSIZE*GBSIZE);
+			else {
 				/* ghostcell page */
-				if(offset[2]-(ghostcelldim-z)>=0 && z<ghostcelldim) {
-					offset[2]=offset[2]-ghostcelldim;	
-				}
-				for(size_t y=0; y<gbsize[1]; y++) {
-					const size_t copy_to = (z*gbsize[1]*gbsize[0]+y*gbsize[0])*vsize+no_b*gbsize[0]*gbsize[1]*gbsize[2];
-					/* y_edge! top */
+				if(offset[2]-(GHOSTCELLDIM-z) >= 0 && z < GHOSTCELLDIM)
+					offset[2] = offset[2] - GHOSTCELLDIM;
+
+				/* Y */
+				for(size_t y=0; y<GBSIZE; y++) {
+					const size_t COPY_TO = (z*GBSIZE*GBSIZE+y*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE;
+					/* y_edge TOP */
 					if(start[1] < 0) {
-						copyline_pad(bricked, arr, copy_to, line);
+						Padding(bricked,COPY_TO,LINE);
 						start[1]++;
-					/* y_edge! bot */
-					} else if(offset[1]>=size) {
-						copyline_pad(bricked, arr, copy_to, line);
-					/*ghostcell top*/
-					} else if(y<ghostcelldim) {
-						const size_t copy_from = (offset[0] + (offset[1]-(ghostcelldim-y))*size + offset[2]*size*size) *vsize;
-						copyline(bricked, arr, copy_to, copy_from, line, edge);;
+					} 
+					/* y_edge BOTTOM */
+					else if (offset[1] >= VOLUME[1]) 
+						Padding(bricked,COPY_TO,LINE);
+					/* ghostcell TOP */
+					else if(y<GHOSTCELLDIM) {
+						const size_t COPY_FROM = (offset[0]+(offset[1]-(GHOSTCELLDIM-y))*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
+						CopyLine(bricked,arr,COPY_TO,COPY_FROM,LINE,x_edge);
+					/* copy data */
 					} else {
-						const size_t copy_from = (offset[0] + offset[1]*size + offset[2]*size*size) *vsize;
-						copyline(bricked, arr, copy_to, copy_from, line, edge);
+						const size_t COPY_FROM = (offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
+						CopyLine(bricked,arr,COPY_TO,COPY_FROM,LINE,x_edge);
 						offset[1]++;
 					}
-				}
-           		/* reset y
-			* increment z */
-			start[1] = orig_start_y;
+				} /* END OF Y LOOP */
+
+			/* reset y; increment z */
+			start[1] = ORIG_START_Y;
 			offset[1] = orig_offset[1];
-			offset[2]++; 
-		    }
-		}
-		orig_offset[0] += bsize[0];
-		if(orig_offset[0]>=size) {
-			orig_offset[1] += bsize[1];
-			if(orig_offset[1] >= size) {
-				orig_offset[2] += bsize[2];
+			offset[2]++;
+			}
+
+		} /*END OF Z LOOP */
+		
+		/* new offsets for next blocks */
+		orig_offset[0] += BRICKSIZE;
+		if(orig_offset[0]>=VOLUME[0]) {
+			orig_offset[1] += BRICKSIZE;
+			if(orig_offset[1] >= VOLUME[1]) {
+				orig_offset[2] += BRICKSIZE;
 				orig_offset[1] = 0;
 			}
 		orig_offset[0] = 0;
 		}
-	}
-	//printArr(arr, size);
-	//printArr2(bricked, bricked_size);
-	//printf("\nCounted:%d\n", counter*gbsize[0]);
-	if(write_data(gbsize[0], no_bricks, bricked) != 0) {
+	} /* END OF no_b LOOP */
+
+	if(write_data(GBSIZE, numberofbricks, bricked) != 0) {
+		printf("ERROR saving bricks into files\n");
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
 }
-

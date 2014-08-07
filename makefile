@@ -1,8 +1,8 @@
 WARN = -Wall -Wextra -Werror -Wconversion
 CFLAGS = -std=c99 -O3
 LDFLAGS = -lm
-HEADERS = io.h
-OBJECTS = bricker.o io.o
+HEADERS = io.h read.h
+OBJECTS = read.o io.o bricker.o
 
 all: bricker
 
