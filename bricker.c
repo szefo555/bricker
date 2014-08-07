@@ -82,14 +82,15 @@ int main(int argc, char* argv[])
 	/* scanline */
 	const size_t LINE = VOXELSIZE * GBSIZE;
 
+	FILE *fp = NULL;
+	if(OpenFile(&fp, "output.raw") != 0) {
+		printf("Couldn't open file %d.raw\n", 1);
+		return EXIT_FAILURE;
+	}
+
 	/* MAIN LOOP */
 
 	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
-		FILE *fp = NULL;
-		if(OpenFile(&fp, no_b+1) != 0) {
-			printf("Couldn't open file %d.raw\n", no_b+1);
-			return EXIT_FAILURE;
-		}
 
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
@@ -162,9 +163,9 @@ int main(int argc, char* argv[])
 			}
 		orig_offset[0] = 0;
 		}
-		fclose(fp);
-	} /* END OF no_b LOOP */
 
+	} /* END OF no_b LOOP */
+	fclose(fp);
 	free(arr);
 	return EXIT_SUCCESS;
 }
