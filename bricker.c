@@ -81,13 +81,16 @@ int main(int argc, char* argv[])
 	const size_t GBSIZE = BRICKSIZE+2*GHOSTCELLDIM;
 	/* scanline */
 	const size_t LINE = VOXELSIZE * GBSIZE;
-	/* output array */
-	uint8_t *bricked;
-	bricked = malloc(sizeof(uint8_t)*GBSIZE*GBSIZE*GBSIZE * numberofbricks);
 
 	/* MAIN LOOP */
 
 	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
+		FILE *fp = NULL;
+		if(OpenFile(&fp, no_b+1) != 0) {
+			printf("Couldn't open file %d.raw\n", no_b+1);
+			return EXIT_FAILURE;
+		}
+
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
 		offset[2] = orig_offset[2];
@@ -109,11 +112,11 @@ int main(int argc, char* argv[])
 		for(size_t z=0; z<GBSIZE; z++) {
 			/* z padding FRONT */
 			if(start[2] < 0) {
-				Padding(bricked, (z*GBSIZE*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE, GBSIZE*GBSIZE);
+				Padding(fp,GBSIZE*GBSIZE);
 				start[2] ++;
 			/* z padding BACK */
 			} else if (offset[2] >= VOLUME[2]) 
-				Padding(bricked, (z*GBSIZE*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE, GBSIZE*GBSIZE);
+				Padding(fp,GBSIZE*GBSIZE);
 			else {
 				/* ghostcell page */
 				if(offset[2]-(GHOSTCELLDIM-z) >= 0 && z < GHOSTCELLDIM)
@@ -121,23 +124,22 @@ int main(int argc, char* argv[])
 
 				/* Y */
 				for(size_t y=0; y<GBSIZE; y++) {
-					const size_t COPY_TO = (z*GBSIZE*GBSIZE+y*GBSIZE)*VOXELSIZE+no_b*GBSIZE*GBSIZE*GBSIZE;
 					/* y_edge TOP */
 					if(start[1] < 0) {
-						Padding(bricked,COPY_TO,LINE);
+						Padding(fp,LINE);
 						start[1]++;
 					} 
 					/* y_edge BOTTOM */
 					else if (offset[1] >= VOLUME[1]) 
-						Padding(bricked,COPY_TO,LINE);
+						Padding(fp,LINE);
 					/* ghostcell TOP */
 					else if(y<GHOSTCELLDIM) {
 						const size_t COPY_FROM = (offset[0]+(offset[1]-(GHOSTCELLDIM-y))*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
-						CopyLine(bricked,arr,COPY_TO,COPY_FROM,LINE,x_edge);
+						CopyLine(fp,arr,COPY_FROM,LINE,x_edge);
 					/* copy data */
 					} else {
 						const size_t COPY_FROM = (offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
-						CopyLine(bricked,arr,COPY_TO,COPY_FROM,LINE,x_edge);
+						CopyLine(fp,arr,COPY_FROM,LINE,x_edge);
 						offset[1]++;
 					}
 				} /* END OF Y LOOP */
@@ -160,11 +162,9 @@ int main(int argc, char* argv[])
 			}
 		orig_offset[0] = 0;
 		}
+		fclose(fp);
 	} /* END OF no_b LOOP */
 
-	if(write_data(GBSIZE, numberofbricks, bricked) != 0) {
-		printf("ERROR saving bricks into files\n");
-		return EXIT_FAILURE;
-	}
+	free(arr);
 	return EXIT_SUCCESS;
 }
