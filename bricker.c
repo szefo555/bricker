@@ -1,8 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include "io.h"
-#include "read.h"
+#include "file_io.h"
+#include "rw.h"
 
 /* 
 Start with:	/bricker x y z brick_dimension^3 ghostcelldimension filename
