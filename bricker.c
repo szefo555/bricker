@@ -5,7 +5,6 @@
 #include "read.h"
 
 /* 
-
 Start with:	/bricker x y z brick_dimension^3 ghostcelldimension filename
 fuel 64^3
 */
@@ -59,15 +58,8 @@ int main(int argc, char* argv[])
 	}
 	printf("---> %d\n", numberofbricks);
 	/* Array where linear data is loaded; *1 == 1byte */
-	uint8_t *arr;
-	arr = malloc(sizeof(uint8_t)*VOLUME[0]*VOLUME[1]*VOLUME[2]*1);
-
 	printf("%d %d %d %d %d\n", VOLUME[0],VOLUME[1],VOLUME[2],BRICKDIM,GHOSTCELLDIM);
 
-	if(read_data(argv[6], VOLUME, arr) != 0) {
-		printf("Error read file\n");
-		return EXIT_FAILURE;
-	}
 	
 	/* offsets */ 
 	size_t offset[3] = {0,0,0};
@@ -82,8 +74,14 @@ int main(int argc, char* argv[])
 	/* scanline */
 	const size_t LINE = VOXELSIZE * GBSIZE;
 
-	FILE *fp = NULL;
-	if(OpenFile(&fp, "output.raw") != 0) {
+	FILE *fpi = NULL;
+	if(OpenFile(&fpi, argv[6], 0) != 0) {
+		printf("Couldn't open file %s\n", argv[6]);
+		return EXIT_FAILURE;	
+	}
+	
+	FILE *fpo = NULL;
+	if(OpenFile(&fpo, "output.raw", 1) != 0) {
 		printf("Couldn't open file %d.raw\n", 1);
 		return EXIT_FAILURE;
 	}
@@ -113,11 +111,11 @@ int main(int argc, char* argv[])
 		for(size_t z=0; z<GBSIZE; z++) {
 			/* z padding FRONT */
 			if(start[2] < 0) {
-				Padding(fp,GBSIZE*GBSIZE);
+				Padding(fpo,GBSIZE*GBSIZE);
 				start[2] ++;
 			/* z padding BACK */
 			} else if (offset[2] >= VOLUME[2]) 
-				Padding(fp,GBSIZE*GBSIZE);
+				Padding(fpo,GBSIZE*GBSIZE);
 			else {
 				/* ghostcell page */
 				if(offset[2]-(GHOSTCELLDIM-z) >= 0 && z < GHOSTCELLDIM)
@@ -127,20 +125,20 @@ int main(int argc, char* argv[])
 				for(size_t y=0; y<GBSIZE; y++) {
 					/* y_edge TOP */
 					if(start[1] < 0) {
-						Padding(fp,LINE);
+						Padding(fpo,LINE);
 						start[1]++;
 					} 
 					/* y_edge BOTTOM */
 					else if (offset[1] >= VOLUME[1]) 
-						Padding(fp,LINE);
+						Padding(fpo,LINE);
 					/* ghostcell TOP */
 					else if(y<GHOSTCELLDIM) {
 						const size_t COPY_FROM = (offset[0]+(offset[1]-(GHOSTCELLDIM-y))*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
-						CopyLine(fp,arr,COPY_FROM,LINE,x_edge);
+						CopyLine(fpo,fpi,COPY_FROM,LINE,x_edge);
 					/* copy data */
 					} else {
 						const size_t COPY_FROM = (offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[1]*VOLUME[0])*VOXELSIZE;
-						CopyLine(fp,arr,COPY_FROM,LINE,x_edge);
+						CopyLine(fpo,fpi,COPY_FROM,LINE,x_edge);
 						offset[1]++;
 					}
 				} /* END OF Y LOOP */
@@ -165,7 +163,7 @@ int main(int argc, char* argv[])
 		}
 
 	} /* END OF no_b LOOP */
-	fclose(fp);
-	free(arr);
+	fclose(fpi);
+	fclose(fpo);
 	return EXIT_SUCCESS;
 }
