@@ -1,8 +1,8 @@
 WARN = -Wall -Wextra -Werror -Wconversion
 CFLAGS = -std=c99 -O3
 LDFLAGS = -lm
-HEADERS = io.h read.h
-OBJECTS = read.o io.o bricker.o
+HEADERS = file_io.h rw.h
+OBJECTS = rw.o file_io.o bricker.o
 
 all: bricker
 
@@ -14,3 +14,4 @@ bricker: $(OBJECTS)
 
 clean:
 	rm -f *.o bricker stdout stderr *.raw
+
