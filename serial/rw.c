@@ -23,13 +23,10 @@ void CopyLine(FILE *fpo, FILE *fpi, size_t COPY_FROM, const size_t LINE, int edg
 	for(int i=edge[1]; i>0; i--) {
 		fwrite(&zero, sizeof(uint8_t), 1, fpo);
 	}
-	if(edge[1]==0) 
-		COPY_FROM--;
 	fseek(fpi, +COPY_FROM, SEEK_SET);
-	printf("%d\n", COPY_FROM);
+	fprintf(stdout, "%d\n", COPY_FROM);
 	for(int i=0; i<n-edge[0]; i++) {
 		fread(&tmp[0], sizeof(uint8_t), 1, fpi);
-		printf("%d\n", tmp[0]);
 		fwrite(&tmp[0], sizeof(uint8_t), 1, fpo);
 			
 	}
