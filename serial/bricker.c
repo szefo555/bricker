@@ -80,16 +80,19 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;	
 	}
 	
-	FILE *fpo = NULL;
-	if(OpenFile(&fpo, "output.raw", 1) != 0) {
-		printf("Couldn't open file %d.raw\n", 1);
-		return EXIT_FAILURE;
-	}
+
 
 	/* MAIN LOOP */
 
 	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
 
+		FILE *fpo = NULL;
+		char fn[256];
+		sprintf(fn, "%d.raw", no_b);
+		if(OpenFile(&fpo, fn, 1) != 0) {
+			printf("Couldn't open file %d.raw\n", 1);
+			return EXIT_FAILURE;
+		}
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
 		offset[2] = orig_offset[2];
@@ -121,7 +124,7 @@ int main(int argc, char* argv[])
 				if(offset[2]-(GHOSTCELLDIM-z) >= 0 && z < GHOSTCELLDIM)
 					offset[2] = offset[2] - GHOSTCELLDIM;
 
-				/* Y */
+				/* Y */	
 				for(size_t y=0; y<GBSIZE; y++) {
 					/* y_edge TOP */
 					if(start[1] < 0) {
@@ -161,9 +164,9 @@ int main(int argc, char* argv[])
 			}
 		orig_offset[0] = 0;
 		}
-
+		printf("---- %d: i %ld | o %ld\n", no_b, ftell(fpi), ftell(fpo));
+		fclose(fpo);
 	} /* END OF no_b LOOP */
 	fclose(fpi);
-	fclose(fpo);
 	return EXIT_SUCCESS;
 }

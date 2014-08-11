@@ -19,17 +19,13 @@ void CopyLine(FILE *fpo, FILE *fpi, size_t COPY_FROM, const size_t LINE, int edg
 	size_t zero = 0;
 	size_t n = LINE;
 	n -= edge[1];
-	uint8_t tmp[1];
+	uint8_t tmp[LINE];
 	for(int i=edge[1]; i>0; i--) {
 		fwrite(&zero, sizeof(uint8_t), 1, fpo);
 	}
 	fseek(fpi, +COPY_FROM, SEEK_SET);
-	fprintf(stdout, "%d\n", COPY_FROM);
-	for(int i=0; i<n-edge[0]; i++) {
-		fread(&tmp[0], sizeof(uint8_t), 1, fpi);
-		fwrite(&tmp[0], sizeof(uint8_t), 1, fpo);
-			
-	}
+	fread(&tmp[0], sizeof(uint8_t), n-edge[0], fpi);
+	fwrite(&tmp[0], sizeof(uint8_t), n-edge[0], fpo);
 	for(int i=n-edge[0]; i<n; i++) {
 		fwrite(&zero, sizeof(uint8_t), 1, fpo);
 	}	
