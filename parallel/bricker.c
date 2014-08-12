@@ -9,17 +9,29 @@
  fuel 64^3
 */
 
-/* Calculate how many pages each rank will brick. 
- page = x*y */
-void getOffsets(size_t *o, size_t size, size_t z, size_t bs) 
+void getOffsets(size_t o[][3], size_t *b, const size_t VOLUME[3], const size_t BS, size_t size) 
 {
-	size_t offset = z/size;
-	size_t mod = z%size;
-	for(size_t i=0; i<size; i++) {
-		o[i] = offset;
-		if(mod!=0) {
-			o[i]++;	
-			mod--;
+	o[0][0]=0;
+	o[0][1]=0;
+	o[0][2]=0;
+	for(size_t i=1; i<size; i++) {
+		
+		o[i][0]=o[i-1][0];
+		o[i][1]=o[i-1][1];
+		o[i][2]=o[i-1][2];
+		size_t no_b = b[i-1];
+
+		while(no_b > 0) {
+			o[i][0] += BS;
+			if(o[i][0]>=VOLUME[0]) {
+				o[i][1] += BS;
+				if(o[i][1] >= VOLUME[1]) {
+					o[i][2] += BS;
+					o[i][1] = 0;
+				}
+				o[i][0] = 0;
+			}
+			no_b--;
 		}
 	}
 }
@@ -28,11 +40,10 @@ void getBricks(size_t *b, size_t size, size_t nb)
 {
 	size_t mybricks = nb/size;
 	size_t mod = nb%size;
-	printf("sdsds %d\n", mod);
 	for(size_t i=0; i<size; i++) {
 		b[i] = mybricks;
 		if(mod!=0) {
-			b[i]*=2;
+			b[i]++;
 			mod--;
 		}
 	}
@@ -91,43 +102,44 @@ int main(int argc, char **argv)
 		printf("ERROR determining number of bricks!\n");
 		return EXIT_FAILURE;
 	}
-	printf("SSSSSSSSSSSSSSS %d\n", numberofbricks);
-	size_t myoffset;
+
+	size_t myoffsets[3];
 	size_t mybricks;
-	size_t offsets[size];
+	size_t offsets[size][3];
 	size_t bricks[size];
 
 	if(rank==0) {
-		getOffsets(offsets, size, VOLUME[2], BRICKSIZE);
-		myoffset=0;
 		getBricks(bricks, size, numberofbricks);
 		mybricks=bricks[0];
-		size_t o=0;
-		for(size_t i=1; i<size; i++) {
-			o+=offsets[i];
-			if(MPI_Send(&o, 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != 0) {
-				fprintf(stderr, "ERROR sending offset\n");
-				MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-			}
-			if(MPI_Send(&bricks[i], 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != 0) {
-				fprintf(stderr, "ERROR sending # of blocks\n");
-				MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+		getOffsets(offsets, bricks, VOLUME, BRICKSIZE, size);
+		myoffsets[0] = 0;
+		myoffsets[1] = 0;
+		myoffsets[2] = 0;
+		if(size > 1) {
+			for(size_t i=1; i<size; i++) {
+				if(MPI_Send(&offsets[i][0], 3, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != 0) {
+					fprintf(stderr, "ERROR sending offset\n");
+					MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+				}
+				if(MPI_Send(&bricks[i], 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != 0) {
+					fprintf(stderr, "ERROR sending # of blocks\n");
+					MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+				}
 			}
 		}
 	} else {
-		if(MPI_Recv(&myoffset, 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE) != 0) {
+		if(MPI_Recv(&myoffsets[0], 3, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE) != 0) {
 			fprintf(stderr, "ERROR receiving offset\n");
 			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);	
 		}
-			if(MPI_Recv(&mybricks, 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE) != 0) {
+		if(MPI_Recv(&mybricks, 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, MPI_STATUS_IGNORE) != 0) {
 			fprintf(stderr, "ERROR receiving # of blocks\n");
 			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);	
 		}
 	}
-	printf("%d: %d %d\n", rank, myoffset, mybricks);
-	
+	printf("RANK: %d BRICKS: %d OFFSET_X %d OFFSET_Y %d OFFSET_Z %d\n", rank, mybricks, myoffsets[0], myoffsets[1], myoffsets[2]);
 	/* local offsets for every rank */
-	size_t offset[3] = {0,0,myoffset};
+	size_t offset[3] = {myoffsets[0],myoffsets[1],myoffsets[2]};
 	size_t goffset[3] = {offset[0]-GHOSTCELLDIM,offset[1]-GHOSTCELLDIM,offset[2]-GHOSTCELLDIM};	
 	size_t orig_offset[3] = {offset[0],offset[1],offset[2]};
 

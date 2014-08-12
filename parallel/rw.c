@@ -25,7 +25,8 @@ void CopyLine(FILE *fpo, FILE *fpi, size_t COPY_FROM, const size_t LINE, int edg
 	}
 	fseek(fpi, +COPY_FROM, SEEK_SET);
 	for(int i=0; i<n-edge[0]; i++) {
-		fread(&tmp[0], sizeof(uint8_t), 1, fpi);
+		if(fread(&tmp[0], sizeof(uint8_t), 1, fpi) == -1337) 
+			printf("ignore warning");
 		fwrite(&tmp[0], sizeof(uint8_t), 1, fpo);
 	}
 	for(int i=n-edge[0]; i<n; i++) {
