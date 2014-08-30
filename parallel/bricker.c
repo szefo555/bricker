@@ -157,19 +157,21 @@ int main(int argc, char **argv)
 		printf("Rank %d couldn't open file %s\n", rank, argv[6]);	
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
-	/* output file stream */	
-	FILE *fpo;
-	char fn[32];	
-	sprintf(fn, "%d.raw", rank);
-	if(OpenFile(&fpo, fn, 1) != 0) {
-		printf("Rank %d couldn't open file %s\n", rank, fn);	
-		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
-	}
+	
 
 	/* MAIN LOOP */
 	
 
 	for(size_t no_b=0; no_b<mybricks; no_b++) {
+
+		/* output file stream */	
+		FILE *fpo;
+		char fn[32];	
+		sprintf(fn, "%d_%d.raw", rank, no_b);
+		if(OpenFile(&fpo, fn, 1) != 0) {
+			printf("Rank %d couldn't open file %s\n", rank, fn);	
+			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+		}
 	
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
@@ -242,10 +244,10 @@ int main(int argc, char **argv)
 			}
 		orig_offset[0] = 0;
 		}
+	fclose(fpo);
 
 	} /* END OF no_b LOOP */
 	fclose(fpi);
-	fclose(fpo);
 	
 	MPI_Finalize();		
 	
