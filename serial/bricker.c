@@ -1,8 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include "file_io.h"
 #include "rw.h"
+#include "multires.h"
 
 /* 
 Start with:	/bricker x y z brick_dimension^3 ghostcelldimension filename
@@ -10,20 +12,20 @@ fuel 64^3
 */
 
 /* how many bricks are needed? */
-size_t NBricks(const size_t VOLUME[3], const size_t BRICKSIZE) 
+size_t NBricks(const size_t VOLUME[3], const size_t BRICKSIZE, size_t *bdim) 
 {
-	size_t nobricks[3] = {0,0,0};
 	if(VOLUME[0] < BRICKSIZE || VOLUME[1] < BRICKSIZE || VOLUME[2] < BRICKSIZE) 
 		return 0;
 
 	for(size_t i=0; i<3; i++) {
-		nobricks[i] = VOLUME[i] / BRICKSIZE;
+		bdim[i] = VOLUME[i] / BRICKSIZE;
 		if(VOLUME[i] % BRICKSIZE != 0) {
-			nobricks[i]++;
+			bdim[i]++;
 		}
 	}
-	printf("No Bricks : %d\n", nobricks[0]*nobricks[1]*nobricks[2]);
-	return nobricks[0]*nobricks[1]*nobricks[2];
+	printf("No Bricks : %d\n", bdim[0]*bdim[1]*bdim[2]);
+	printf("X %d Y %d Z %d\n", bdim[0],bdim[1],bdim[2]);
+	return bdim[0]*bdim[1]*bdim[2];
 }
 
 size_t GetBytes()
@@ -50,20 +52,20 @@ int main(int argc, char* argv[])
 		printf("BRICKSIZE is smaller than 1!\n");	
 		return EXIT_FAILURE;
 	}
+	/* # bricks per dimension */
+	size_t bricks_per_dimension[3];
 	/* number of bricks? */
-	size_t numberofbricks = NBricks(VOLUME, BRICKSIZE);
+	size_t numberofbricks = NBricks(VOLUME, BRICKSIZE, bricks_per_dimension);
 	if(numberofbricks == 0) {
 		printf("ERROR determining number of bricks!\n");
 		return EXIT_FAILURE;
 	}
-	printf("---> %d\n", numberofbricks);
 	/* Array where linear data is loaded; *1 == 1byte */
 	printf("%d %d %d %d %d\n", VOLUME[0],VOLUME[1],VOLUME[2],BRICKDIM,GHOSTCELLDIM);
 
 	
 	/* offsets */ 
 	size_t offset[3] = {0,0,0};
-	size_t goffset[3] = {offset[0]-GHOSTCELLDIM, offset[1]-GHOSTCELLDIM, offset[2]-GHOSTCELLDIM};
 	size_t orig_offset[3] = {offset[0], offset[1], offset[2]};
 	
 	/* get voxel size (in bytes) */
@@ -79,6 +81,14 @@ int main(int argc, char* argv[])
 		printf("Couldn't open file %s\n", argv[6]);
 		return EXIT_FAILURE;	
 	}
+
+	FILE *fpo = NULL;
+	char fn[256];
+	sprintf(fn, "%d.raw", 1);
+	if(OpenFile(&fpo, fn, 1) != 0) {
+		printf("Couldn't open file %d.raw\n", 1);
+		return EXIT_FAILURE;
+	}
 	
 
 
@@ -86,13 +96,6 @@ int main(int argc, char* argv[])
 
 	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
 
-		FILE *fpo = NULL;
-		char fn[256];
-		sprintf(fn, "%d.raw", no_b);
-		if(OpenFile(&fpo, fn, 1) != 0) {
-			printf("Couldn't open file %d.raw\n", 1);
-			return EXIT_FAILURE;
-		}
 		offset[0] = orig_offset[0];
 		offset[1] = orig_offset[1];
 		offset[2] = orig_offset[2];
@@ -164,9 +167,41 @@ int main(int argc, char* argv[])
 			}
 		orig_offset[0] = 0;
 		}
-		printf("---- %d: i %ld | o %ld\n", no_b, ftell(fpi), ftell(fpo));
-		fclose(fpo);
 	} /* END OF no_b LOOP */
 	fclose(fpi);
+	fclose(fpo);
+
+	if(OpenFile(&fpo, "1.raw", 0) != 0) {
+		printf("Couldn't open file %d.raw\n", 1);
+		return EXIT_FAILURE;
+	}
+
+	/* file for multiresolution hierarchy */
+	FILE *fpm; 	
+	if(OpenFile(&fpm, "multires.raw", 1) != 0) {
+		printf("Couldn't open file %d.raw\n", 1);
+		return EXIT_FAILURE;
+	}
+
+
+	const size_t BVOLUME[3] = {bricks_per_dimension[0] * BRICKDIM, bricks_per_dimension[1] * BRICKDIM, bricks_per_dimension[2] * BRICKDIM};
+	const size_t BRICKCUBED = GBSIZE*GBSIZE*GBSIZE;
+	size_t leftside = 1;
+
+		
+	
+	for(size_t no_b = 0; no_b < numberofbricks; no_b++) {
+		if(leftside>=bricks_per_dimension[0]) {
+			leftside=0;
+			printf("yo\n");
+			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, true, no_b);
+		} else		
+			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, false, no_b);
+		leftside++;
+	}
+
+
+	fclose(fpm);
+	fclose(fpo);	
 	return EXIT_SUCCESS;
 }

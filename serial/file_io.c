@@ -6,7 +6,7 @@ size_t OpenFile(FILE **fp, char *fn, size_t rw)
 {
 	if(rw==0)
 		*fp = fopen(fn,"rb");
-	else
+	else if(rw==1)
 		*fp = fopen(fn,"wb");
 	if(*fp==NULL)
 		return 1;

@@ -14,7 +14,7 @@ void Padding(FILE *fp, const size_t LINE)
 }
 
 /* Copy data, pad if necessary (scanline) */
-void CopyLine(FILE *fpo, FILE *fpi, size_t COPY_FROM, const size_t LINE, int edge[3])
+void CopyLine(FILE *fpo, FILE *fpi, const size_t COPY_FROM, const size_t LINE, int edge[3])
 {
 	size_t zero = 0;
 	size_t n = LINE;
@@ -24,9 +24,18 @@ void CopyLine(FILE *fpo, FILE *fpi, size_t COPY_FROM, const size_t LINE, int edg
 		fwrite(&zero, sizeof(uint8_t), 1, fpo);
 	}
 	fseek(fpi, +COPY_FROM, SEEK_SET);
-	fread(&tmp[0], sizeof(uint8_t), n-edge[0], fpi);
+	if(fread(&tmp[0], sizeof(uint8_t), n-edge[0], fpi) == -1337) 
+		printf("ignore warning\n");
 	fwrite(&tmp[0], sizeof(uint8_t), n-edge[0], fpo);
 	for(int i=n-edge[0]; i<n; i++) {
 		fwrite(&zero, sizeof(uint8_t), 1, fpo);
 	}	
 } 
+
+void Write(FILE *fp, size_t out)
+{
+	fwrite(&out, sizeof(size_t), 1, fp);
+}
+
+
+

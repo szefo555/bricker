@@ -2,6 +2,8 @@
 #define rw_h
 
 void Padding(FILE*, size_t);
-void CopyLine(FILE*, FILE*, size_t, size_t, int*);
+void CopyLine(FILE*, FILE*, const size_t, const size_t, int*);
+void Write(FILE*, size_t);
+
 
 #endif
