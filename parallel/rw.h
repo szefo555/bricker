@@ -1,7 +1,8 @@
 #ifndef rw_h
 #define rw_h
 
-void Padding(FILE*, size_t);
-void CopyLine(FILE*, FILE*, size_t, size_t, int*);
+void Seek(MPI_File, int);
+void Padding(MPI_File, size_t);
+void CopyLine(MPI_File, MPI_File, int, size_t, int*);
 
 #endif
