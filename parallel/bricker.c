@@ -170,37 +170,18 @@ int main(int argc, char **argv)
 
 	/* input file stream */
 	MPI_File fpi;
-	//OpenFile(fpi, argv[6], 0);
 	MPI_File_open(MPI_COMM_WORLD, argv[6], MPI_MODE_RDONLY, MPI_INFO_NULL, &fpi);
-	
-	
-	uint8_t tmp;
 
-	MPI_File_read(fpi, &tmp, 1, MPI_UINT8_T, MPI_STATUS_IGNORE);
-	printf("%d\n",tmp);
 	/* output file stream */	
 	MPI_File fpo;
 	char fn[256];	
 	sprintf(fn, "b_%d_%d_%d_%d^3.raw", VOLUME[0], VOLUME[1], VOLUME[2], GBSIZE);
 	MPI_File_open(MPI_COMM_WORLD, fn, MPI_MODE_RDWR | MPI_MODE_CREATE, MPI_INFO_NULL, &fpo);
-	
-	/* set file pointer in output file */
-	size_t goff[3] = {0,0,0};
-	for(size_t i=0; i<mystart; i++) {
-		goff[0]++;
-		if(goff[0] >= bricks_per_dimension[0]) {
-			goff[1]++;
-			goff[0]=0;
-			if(goff[1] >= bricks_per_dimension[1]) {
-				goff[2]++;	
-				goff[1]=0;
-			}
-		}
-	}
 
 	/* MAIN LOOP */
 	for(size_t no_b = mystart; no_b<mystart+mybricks; no_b++) {
 
+		/* offset for output file */
 		int woffset = no_b*GBSIZE*GBSIZE*GBSIZE;
 		MPI_File_seek(fpo, woffset, MPI_SEEK_SET);
 
