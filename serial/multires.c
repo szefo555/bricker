@@ -5,7 +5,6 @@
 
 
 /* needs to go into rw.c */
-
 size_t ReadAndAdd(FILE *fpo, const size_t ADD_FROM, const size_t LINE) {
 	size_t n = LINE;
 	uint8_t tmp[n];
@@ -21,45 +20,74 @@ size_t ReadAndAdd(FILE *fpo, const size_t ADD_FROM, const size_t LINE) {
 	return out;
 }
 
-
-
-void CalcMultiresolutionHierarchy(FILE *fpo, FILE *fpm, size_t brick_offset, const size_t GBSIZE, const size_t BSIZE, const size_t GHOSTCELLDIM, bool edge, size_t brick_number) 
+/* fo: offset of all previous hierarchies (local)
+  NFIELDS: number of "collapsing cells" in one dimension (local)
+  goff: offset of the BRICK in the volume (global)
+  loff: offset of "collapsing cells" INSIDE the BRICK (local)
+  bpd: bricks per dimension (global) */
+size_t GetOffset(size_t fo, size_t goff[3], size_t loff[3], const size_t NFIELDS, size_t bpd[3]) 
 {
+	return fo+goff[0]*NFIELDS+goff[1]*NFIELDS*bpd[0]*NFIELDS+goff[2]*NFIELDS*bpd[0]*NFIELDS*bpd[1]*NFIELDS+loff[0]+loff[1]*NFIELDS*bpd[0]+loff[2]*NFIELDS*bpd[0]*NFIELDS*bpd[1];
+}
+
+/* fpo: file pointer of bricked volume (read)
+  fpm: file pointer of multires (write)
+  brick_offset: offset in the bricked volume 
+  edge: is the brick on the left edge? (global)
+  brick_number: number of brick, starts left top in the bricked volume with 0
+  bricks_per_dim: how many bricks are there in one dimension */
+void CalcMultiresolutionHierarchy(FILE *fpo, FILE *fpm, size_t brick_offset, const size_t GBSIZE, const size_t BSIZE, const size_t GHOSTCELLDIM, bool edge, size_t brick_number, size_t bricks_per_dim[3]) 
+{
+	/* current # of "collapsing" voxels */
 	size_t current = 2;
-	int first = 1;
-	printf("%d\n", (brick_number)/4);
-	size_t two = 0;
-			for(size_t i=0; i<brick_number; i++) 
-				two+=2;
-	while(current < BSIZE) {
+	/* offset of all previous hierarchies (local) */
+	size_t fulloffset = 0;
+	
+	while(current < 3) {
+		/*   GLOBAL offset of the BRICK in the volume*/
+		size_t goffset[3] = {0,0,0};
+		for(size_t i=0; i<brick_number; i++) {
+			goffset[0]++;
+			if(goffset[0] >= bricks_per_dim[0]) {
+				goffset[1]++;
+				goffset[0]=0;
+				if(goffset[1] >= bricks_per_dim[1]) {
+					goffset[2]++;	
+					goffset[1]=0;
+				}
+			}
+		}
+		/* number of "collapsing cells or fields" in one dimension */
+		size_t NFIELDS = BSIZE/current;
+		/* LOCAL offset INSIDE the BRICK */
 		size_t offset[3] = { 0,0,0 };
-		size_t numberofbricks = BSIZE*BSIZE*BSIZE/current/current/current;
-		printf("current brick %d | numberofbricks %d\n", brick_number, numberofbricks);
-		/* only working for 2^3, 4^3, ... 64^3 128^3 */
-		/* figure out no_b < X <<<<<<<<< */
+		size_t numberofbricks = BSIZE*BSIZE*BSIZE/current/current/current;	
 		for(size_t no_b=0; no_b < numberofbricks; no_b++) {
-			size_t goffset[3] = { offset[0], offset[1] + GHOSTCELLDIM, offset[2] + GHOSTCELLDIM};
+			size_t coffset[3] = { offset[0], offset[1] + GHOSTCELLDIM, offset[2] + GHOSTCELLDIM};
 			if(edge == true)
-				goffset[0] += GHOSTCELLDIM;
-			size_t start = goffset[1];
+				coffset[0] += GHOSTCELLDIM;
+			size_t start = coffset[1];
 			size_t sum = 0;
 			for(size_t z=0; z<current; z++) {
 				for(size_t y=0; y<current; y++) {
-					const size_t ADD_FROM = brick_offset+(goffset[0]+goffset[1]*GBSIZE+goffset[2]*GBSIZE*GBSIZE);
+					const size_t ADD_FROM = brick_offset+(coffset[0]+coffset[1]*GBSIZE+coffset[2]*GBSIZE*GBSIZE);
 					sum+=ReadAndAdd(fpo, ADD_FROM, current);
-					goffset[1]++;
+					coffset[1]++;
 		 		}
-				goffset[1] = start;
-				goffset[2]++;
+				coffset[1] = start;
+				coffset[2]++;
 			}
+			/* get average */
 			sum/=(current*current*current);
-			/* OFFSET */
-			size_t moffset = e+w+offset[0]/current+offset[1]*4/current+offset[2]*8/current;
-			fseek(fpm, moffset, SEEK_SET);
+
+			/* LOCAL offset divided by current INSIDE the BRICK
+			  needed for the calculation of the offset for writing output */
+			size_t loffset[3] = {offset[0]/current, offset[1]/current, offset[2]/current};
+			
+			const size_t MYOFFSET = GetOffset(fulloffset, goffset, loffset, NFIELDS, bricks_per_dim);
+
+			fseek(fpm, MYOFFSET, SEEK_SET);
 			fwrite(&sum, sizeof(uint8_t), 1, fpm);		
-
-
-
 			offset[0]+=current;
 			if(offset[0] >= BSIZE) {
 				offset[1]+=current;
@@ -70,6 +98,7 @@ void CalcMultiresolutionHierarchy(FILE *fpo, FILE *fpm, size_t brick_offset, con
 				offset[0] = 0;
 			}
 		}	
+		fulloffset+=numberofbricks*bricks_per_dim[0]*bricks_per_dim[1]*bricks_per_dim[2];
 		current*=2;			
 	}
 
