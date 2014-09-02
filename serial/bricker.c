@@ -93,7 +93,6 @@ int main(int argc, char* argv[])
 
 
 	/* MAIN LOOP */
-
 	for(size_t no_b = 0; no_b<numberofbricks; no_b++) {
 
 		offset[0] = orig_offset[0];
@@ -183,23 +182,19 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
-
-	const size_t BVOLUME[3] = {bricks_per_dimension[0] * BRICKDIM, bricks_per_dimension[1] * BRICKDIM, bricks_per_dimension[2] * BRICKDIM};
 	const size_t BRICKCUBED = GBSIZE*GBSIZE*GBSIZE;
 	size_t leftside = 1;
 
-		
-	
 	for(size_t no_b = 0; no_b < numberofbricks; no_b++) {
 		if(leftside>=bricks_per_dimension[0]) {
 			leftside=0;
-			printf("yo\n");
-			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, true, no_b);
-		} else		
-			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, false, no_b);
+			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, true, no_b, bricks_per_dimension);
+		} else	
+			CalcMultiresolutionHierarchy(fpo, fpm, no_b*BRICKCUBED, GBSIZE, BRICKSIZE, GHOSTCELLDIM, false, no_b, bricks_per_dimension);
+
 		leftside++;
 	}
-
+	printf("X %d Y %d Z %d\n", bricks_per_dimension[0],bricks_per_dimension[1],bricks_per_dimension[2]);
 
 	fclose(fpm);
 	fclose(fpo);	
