@@ -23,9 +23,107 @@ size_t NBricks(const size_t VOLUME[3], const size_t BRICKSIZE, size_t *bdim)
 	return bdim[0]*bdim[1]*bdim[2];
 }
 
+void GetBrickCoordinates(size_t b[3], size_t bpd[3], size_t id)
+{
+	b[0] = id%bpd[0];
+	b[1] = (id/bpd[0])%bpd[1];
+	b[2] = (id/(bpd[0]*bpd[1]))%bpd[2];
+}
+
+size_t GetBrickId(size_t b[3], const size_t bpd[3])
+{
+	return b[0]+b[1]*bpd[0]+b[2]*bpd[0]*bpd[1];
+}
+
+/* right, bot, back */
+void CheckEdge2(size_t b[3], size_t edge[3], const size_t GDIM, const size_t VOLUME[3], const size_t BRICKSIZE) {
+	for(size_t i=0; i<3; i++) {
+		size_t n = VOLUME[i]/BRICKSIZE;
+		size_t cmp = 0;
+		if(VOLUME[i]%BRICKSIZE==0) cmp++;
+		if(b[i] + cmp == n) {
+			edge[i] = BRICKSIZE+GDIM-(VOLUME[i]%BRICKSIZE);
+		} 
+	} 
+}
+
 void ResetOffset(size_t o[3], size_t oo[3]) {
 	for(size_t i=0; i<3; i++)
 		o[i] = oo[i];
+}
+
+/* edge2 right, bot, back */
+size_t ReadBrick(FILE *f, const size_t VOLUME[3], uint8_t *data, int src[3], const size_t GBSIZE, size_t e[3], size_t bno)
+{
+	size_t cur = 0;
+	/* left, top, front */
+	int e2[3] = {0,0,0};
+	for(size_t i=0; i<3; i++) {
+		if(src[i] < 0) {
+			e2[i] = src[i]*-1;
+			src[i] = 0;
+		}
+	}
+	/* left, right, top, bot, front, back */
+	size_t edge[6] = {e2[0], e[0], e2[1], e[1], e2[2], e[2]};
+	/* top, bot */
+	const size_t ORIG_Y = src[1];
+	for(size_t z=0; z<GBSIZE; z++) {
+		for(size_t y=0; y<GBSIZE; y++) {
+			/* y_edge top GHOSTCELLS */
+			if(edge[2] > 0 && y < edge[2] && src[1]>0) 
+					src[1]--;
+			/* y_edge bot NO GHOSTCELLS */
+			if(edge[3] > 0 && src[1] >= VOLUME[1]) {
+					src[1]--;
+			}	
+			/* z_edge back NO GHOSTCELLS */
+			if(edge[5]>0 &&  src[2] >= VOLUME[2]) {
+				src[2]--;
+			}
+			const size_t LINE = GBSIZE-edge[0]-edge[1];
+ 		
+			const size_t COPY_FROM = src[0]+src[1]*VOLUME[0]+src[2]*VOLUME[0]*VOLUME[1];
+			int a;
+			fseek(f, COPY_FROM, SEEK_SET);
+			if(a = fread(&data[edge[0]+cur], sizeof(uint8_t), LINE, f) != LINE) {
+				printf("ERROR @ %d: Read %d of %d\nPosition %d %d %d\nLoop Y: %d Z: %d\nLEFT %d RIGHT %d\n%d", bno,a, LINE, src[0], src[1],src[2],y,z,edge[0],edge[1],COPY_FROM);		
+				return 1;
+			}
+			/* x_edge left */
+			if(edge[0]>0) {
+				for(size_t i=0; i<edge[0]; i++)
+					data[cur+i] = data[edge[0]+cur];
+			}
+			/* x_edge right */
+			if(edge[1]>0) {
+				for(size_t i=0; i<edge[1]; i++) {
+					data[edge[0]+cur+LINE+i] = data[edge[0]+cur+LINE-1];
+				}
+			}
+			cur+=GBSIZE;
+			src[1]++;
+			/* y_edge top NO GHOSTCELLS */
+			if(edge[2] > 0 && y < edge[2] && src[1]==1) 
+					src[1]--;
+		}
+		src[1] = ORIG_Y;
+		src[2]++;
+		
+		/* z_edge front NO GHOSTCELLS*/
+		if(edge[4] > 0 && z < edge[4] && src[2]==1) {
+			src[2]--;
+		}
+	}
+	return 0;
+}
+
+size_t WriteBrick(FILE *f, uint8_t *data, size_t length, size_t buf)
+{
+	fseek(f, buf, SEEK_SET);
+	if(fwrite(&data[0], sizeof(uint8_t), length, f) != length)
+		printf("fwrite error\n");
+	return 0;
 }
 
 int main(int argc, char* argv[]) 
@@ -55,14 +153,18 @@ int main(int argc, char* argv[])
 		printf("ERROR determining number of bricks!\n");
 		return EXIT_FAILURE;
 	}
+
+	//WriteMetadata(VOLUME,BRICKDIM,GHOSTCELLDIM,numberofbricks,bricks_per_dimensionension[3]);
 	
 	size_t offset[3] = {0,0,0};
 	size_t orig_offset[3] = {0,0,0};
 
-	size_t LINE=BRICKSIZE+2*GHOSTCELLDIM;
+	size_t GBSIZE=BRICKSIZE+2*GHOSTCELLDIM;
+	printf("Bricksize %d || GBricksize %d\n", BRICKSIZE, GBSIZE);
 	
 	FILE *fpi = NULL;
-	if(OpenFile(&fpi, argv[6], 0) != 0) {
+	fpi = fopen(argv[6],"rb");
+	if(fpi == NULL) {
 		printf("Couldn't open file %s\n", argv[6]);
 		return EXIT_FAILURE;	
 	}
@@ -70,78 +172,44 @@ int main(int argc, char* argv[])
 	FILE *fpo = NULL;
 	char fn[256];
 	sprintf(fn, "%d.raw", 1);
-	if(OpenFile(&fpo, fn, 1) != 0) {
-		printf("Couldn't open file %d.raw\n", 1);
+	fpo = fopen(fn,"rwb");
+	if(fpo == NULL) {
+		printf("Couldn't open file %s.raw\n", fn);
 		return EXIT_FAILURE;
 	}
 	
-	for(size_t no_b=0; no_b<numberofbricks; no_b++) {
-		ResetOffset(offset,orig_offset);	
-		/* x_edge left, y_edge top, z_edge front */
-		int start[3] = {offset[0] - GHOSTCELLDIM, offset[1] - GHOSTCELLDIM, offset[2] - GHOSTCELLDIM};
-		const int ORIG_START_Y = start[1];
-		/* x_edge left, x_edge right */
-		int x_edge[2] = {0,0};
-		/* x_edge left */
-		if(start[0]<0)
-			x_edge[0] = start[0]*-1;
-		/* x_edge right */
-		if(offset[0]+LINE-GHOSTCELLDIM >= VOLUME[0]) 
-			x_edge[1] = offset[0]+LINE-GHOSTCELLDIM-VOLUME[0];
-
-
-		/*Z*/
-		for(size_t z=0; z<LINE; z++) {
-			if(start[2]<0) {
-				size_t pad[2] = {LINE*LINE,0};
-				CopyData(fpi,fpo,offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],0,pad, no_b);
-				start[2]++;
-			} else if (offset[2] >= VOLUME[2]) {
-				size_t pad[2] = {LINE*LINE,0};
-				CopyData(fpi,fpo,offset[0]+offset[1]*VOLUME[0]+(offset[2]-(offset[2]-VOLUME[2])-1)*VOLUME[0]*VOLUME[1],0,pad, no_b);
-			} else {
-				if(z < GHOSTCELLDIM && offset[2] - (GHOSTCELLDIM-z) >= 0) {
-					offset[2]-=GHOSTCELLDIM;
-				}
-				for(size_t y=0; y<LINE; y++) {
-					/* top */
-					if(start[1]<0) {
-						if(offset[2]==0) {
-							CopyData(fpi,fpo,offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],LINE,x_edge, no_b); start[1]++;
-						} else {
-							CopyData(fpi,fpo,offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1]-LINE,LINE,x_edge, no_b); start[1]++;
-						}
-					/* bottom */
-					} else if (offset[1]>=VOLUME[1] && offset[1] < VOLUME[1]+GHOSTCELLDIM) {
-						CopyData(fpi,fpo,offset[0]+(offset[1]-(offset[1]-VOLUME[1])-1)*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],LINE,x_edge, no_b);
-
-					} else if (offset[1]>=VOLUME[1] && offset[1] >= VOLUME[1]+GHOSTCELLDIM) { 
-						CopyData(fpi,fpo,offset[0]+offset[1]-(offset[1]-VOLUME[1]+GHOSTCELLDIM)*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],LINE,x_edge,no_b);	
-					} else if (y<GHOSTCELLDIM) {
-						CopyData(fpi,fpo,offset[0]+(offset[1]-(GHOSTCELLDIM-y))*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],LINE,x_edge, no_b);
-					} else {
-						CopyData(fpi,fpo,offset[0]+offset[1]*VOLUME[0]+offset[2]*VOLUME[0]*VOLUME[1],LINE,x_edge, no_b);	
-						offset[1]++;
-					}
-				} /* END OF Y LOOP */
-			/* reset Y, increment Z */
-			start[1] = ORIG_START_Y;
-			offset[1] = orig_offset[1];
-			offset[2]++;
-			}
-		} /* END OF Z LOOP */	
-		/* new offsets for next blocks */
-		orig_offset[0] += BRICKSIZE;
-		if(orig_offset[0]>=VOLUME[0]) {
-			orig_offset[1] += BRICKSIZE;
-			if(orig_offset[1] >= VOLUME[1]) {
-				orig_offset[2] += BRICKSIZE;
-				orig_offset[1] = 0;
-			}
-		orig_offset[0] = 0;
-		}
-	} /* END OF no_b LOOP */
-	fclose(fpi);
-	fclose(fpo);
 	
+	
+	for(size_t no_b=0; no_b<numberofbricks; no_b++) {
+		size_t b[3];
+		GetBrickCoordinates(b,bricks_per_dimension,no_b);
+		size_t buffer = no_b*GBSIZE*GBSIZE*GBSIZE;
+		size_t edge[3] = {0,0,0};
+		CheckEdge2(b, edge, GHOSTCELLDIM, VOLUME, BRICKSIZE);
+		int src[3] = 
+			{(b[0]%bricks_per_dimension[0]*BRICKSIZE)-GHOSTCELLDIM,
+			 (b[1]%bricks_per_dimension[1]*BRICKSIZE)-GHOSTCELLDIM,
+			 (b[2]%bricks_per_dimension[2]*BRICKSIZE)-GHOSTCELLDIM};
+		uint8_t *data = malloc(sizeof(uint8_t) * GBSIZE * GBSIZE * GBSIZE);		
+		if(ReadBrick(fpi, VOLUME, data, src, GBSIZE, edge, no_b) != 0) 
+			return EXIT_FAILURE;
+		WriteBrick(fpo, data, GBSIZE*GBSIZE*GBSIZE, buffer);
+		free(data);
+		//printf("Brick %d done\n", no_b);
+	}
+	fclose(fpi);
+
+	FILE *fpm = NULL
+	fpm = fopen("multi.raw", "rwb");
+	if(fpm == NULL) {
+		printf("Couldn't open file multi.raw\n");
+		return EXIT_FAILURE;
+	}
+
+	CalcMultiRes();
+	
+		
+	
+	fclose(fpo);
+	fclose(fpm);	
 }
