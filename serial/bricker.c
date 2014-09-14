@@ -21,11 +21,8 @@ void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, const size_t VOLUME[
 	}
 	/* right bot back */
 	for(size_t i=0; i<3; i++) {
-		size_t n = VOLUME[i]/BRICKSIZE;
-		/* NEEDS FIX ASAP */
-		if(b[i]+GDIM >= n) {
-			edge[i*2+1] = VOLUME[i]%BRICKSIZE+GDIM;
-		} 
+		if(b[i]+GDIM>VOLUME[i]/BRICKSIZE)
+			edge[i*2+1]=GDIM;
 	} 
 }
 
@@ -46,22 +43,30 @@ size_t ReadFile(FILE *f, const size_t VOLUME[3], uint8_t *data, int src[3], cons
 {
 	size_t cur = 0;
 	const size_t ORIG_Y = src[1];
+	const size_t ORIG_RIGHT = edge[1];
 	for(size_t z=0; z<GBSIZE; z++) {
 		for(size_t y=0; y<GBSIZE; y++) {
+			edge[1] = ORIG_RIGHT;
 			/* y_edge top GHOSTCELLS */
 			if(edge[2] > 0 && y < edge[2] && src[1]>0) 
-					src[1]--;
+				src[1]--;
 			/* y_edge bot NO GHOSTCELLS */
 			if(edge[3] > 0 && src[1] >= VOLUME[1]) {
-					src[1]--;
+				src[1]--;
 			}	
 			/* z_edge back NO GHOSTCELLS */
-			if(edge[5]>0 &&  src[2] >= VOLUME[2]) {
+			if(src[2] >= VOLUME[2]) {
 				src[2]--;
+			}/* y_edge bot NO GHOSTCELLS */
+			if(src[1] >= VOLUME[1]) {
+				src[1]--;
 			}
 			size_t LINE = GBSIZE-edge[0]-edge[1];
-			while(src[0]+LINE>VOLUME[0])
+			while(src[0]+LINE>VOLUME[0]) {
 				LINE--;
+				edge[1]++;
+			}
+			//printf("%d || %d %d %d || %d || %d \n",bno, src[0], src[1], src[2], LINE, edge[1]);
 			const size_t COPY_FROM = src[0]+src[1]*VOLUME[0]+src[2]*VOLUME[0]*VOLUME[1];
 			int a;
 			fseek(f, COPY_FROM, SEEK_SET);
@@ -119,150 +124,184 @@ size_t ReadLine(FILE* f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 
 size_t GetNumberOfVoxels(size_t bpd[3], const size_t GBSIZE, const size_t GDIM)
 {
-	return 8*GBSIZE*GBSIZE*GBSIZE; /*for now*/
+	return 8*GBSIZE*GBSIZE*GBSIZE;
 }
 
-size_t GetBricks(FILE* f, uint8_t *data, size_t b[3], size_t bpd[3], const size_t BSIZE, const size_t GDIM, const size_t GBSIZE)
+size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t b[3], size_t id, size_t bpd[3], const size_t EDGE[6])
+{
+	size_t cur = 0;
+	size_t fo = 0;
+	/* front */
+	if(EDGE[4]==1 && GDIM>0) {
+		/* Ghostcells available (aka are we on the edge of the volume?) ? */
+		if(b[2]>0) {
+			size_t ob[3] = {b[0], b[1], b[2]-1};
+			size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-2*GDIM*GBSIZE*GBSIZE;
+			size_t line = 2*GDIM*GBSIZE*GBSIZE;
+			if(ReadLine(f, data, cur, line, offset) != 0)
+				printf("error front gc\n");
+			cur+=line;
+		} else {
+			size_t offset = d_offset+GDIM*GBSIZE*GBSIZE;
+			size_t line = GDIM*GBSIZE*GBSIZE;
+			memcpy(&o_data[cur], &data[offset], line);
+			cur+=line;
+			memcpy(&o_data[cur], &data[offset], line);
+			cur+=line;
+		}
+	}	
+	/* back */
+	if(EDGE[5] == 1 && GDIM > 0) {
+		if(b[2]+1 < bpd[2]) {
+			size_t ob[3] = {b[0], b[1],b[2]+1};
+			size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE;
+			size_t line = 2*GDIM*GBSIZE*GBSIZE;
+			if(ReadLine(f, data, cur, line, offset) != 0)
+				printf("error back gc\n");
+			cur+=line;
+		} else {
+			size_t offset = d_offset+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-GBSIZE*GBSIZE;
+			size_t line = GBSIZE*GBSIZE;
+			memcpy(&o_data[cur], &data[offset], line);
+			cur+=line;
+			memcpy(&o_data[cur], &data[offset], line);
+			cur+=line;
+		}
+	}
+	for(size_t z=0; z<BSIZE; z++) {
+		for(size_t y=0; y<GBSIZE; y++) {
+			/* top */
+			if(EDGE[2] == 1 && y < GDIM) {
+				if(b[1] > 0) {
+					size_t ob[3] = {b[0], b[1]-1, b[2]};
+					size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE + z*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-2*GDIM*GBSIZE;
+					size_t line = 2*GDIM*GBSIZE;
+					if(ReadLine(f, data, cur, line, offset) != 0)
+						printf("error top gc\n");
+					cur+=line;	
+				} else {
+					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
+					if(id==0)printf("%d || %d \n", data[offset], cur);
+					size_t line = GDIM*GBSIZE;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+				}
+			}
+			/* bottom */
+			if(EDGE[3] == 1 && y>=(BSIZE+GDIM)) {
+				if(b[1]+1 < bpd[1]) {
+					size_t ob[3] = {b[0], b[1]+1, b[2]};
+					size_t offset = fo+GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
+					size_t line = 2*GDIM*GBSIZE;
+					if(ReadLine(f, data, cur, line, offset) != 0)
+						printf("bot gc error\n");
+					cur+=line;
+				} else {
+					size_t offset = fo+d_offset+(z+GDIM)*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-GBSIZE;
+					size_t line = GBSIZE;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+				}
+			}
+		}
+	}
+	for(size_t z=0; z<BSIZE; z++) {
+		for(size_t y=0; y<GBSIZE; y++) {
+			/* left */
+			if(EDGE[0] == 1 && y>=GDIM && y<(BSIZE+GDIM)) {
+				if(b[0] > 0) {
+					size_t ob[3] = {b[0]-1, b[1], b[2]};
+					size_t offset = fo+GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE+z*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
+					size_t line = 2*GDIM;
+					if(ReadLine(f, data, cur, line, offset) != 0)
+						printf("error left gc\n");
+					cur+=line;
+					
+				} else {
+					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
+
+					size_t line=GDIM;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;	
+				}
+			}
+			/* right */
+			if(EDGE[1] == 1 && y>=GDIM && y<(BSIZE+GDIM)) {
+				if(b[0]+1 < bpd[0]) {
+					size_t ob[3] = {b[0]+1, b[1], b[2]};
+					size_t offset = fo+GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+(GDIM+z)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
+					size_t line = 2*GDIM;
+					if(ReadLine(f, data, cur, line, offset) != 0)
+						printf("error right gc \n");
+					cur+=line;									
+				} else {
+					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM;
+					size_t line = GDIM;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;
+					memcpy(&o_data[cur], &data[offset], line);
+					cur+=line;	
+				}
+			}
+		}
+	}
+
+	printf("\n\n%d || %d %d %d %d %d %d \n", id, EDGE[0],EDGE[1],EDGE[2],EDGE[3],EDGE[4],EDGE[5]);
+
+
+	printf("\nfront/back\n");
+	for(size_t front=0; front<GBSIZE*GBSIZE*2*GDIM; front++)
+		printf("%d ", o_data[front]);
+	printf("\ntop/bot\n");
+	for(size_t back=0; back<BSIZE*GBSIZE*2*GDIM; back++)
+		printf("%d ", o_data[GBSIZE*GBSIZE*2*GDIM+back]);
+	printf("\nl/r\n");
+	for(size_t l=0; l<BSIZE*BSIZE*2*GDIM; l++)
+		printf("%d ", o_data[GBSIZE*GBSIZE*2*GDIM+2*GDIM*GBSIZE*BSIZE+l]);
+
+}
+
+size_t SetLowerResolution(FILE *f,uint8_t *data, uint8_t *o_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t current_brick, size_t current_id, size_t EDGE[3])
+
+size_t Get8Bricks(FILE* fin, FILE* fout, uint8_t *data, size_t b[3], size_t bpd[3], const size_t BSIZE, const size_t GDIM, const size_t GBSIZE)
 {
 	size_t cur = 0;
 	size_t fo = 0; /* NEEDS FULL OFFSET */
 	for(size_t brickZ=0; brickZ<2; brickZ++) {
 		for(size_t brickY=0; brickY<2; brickY++) {
 			for(size_t brickX=0; brickX<2; brickX++) {
-				size_t edge[6] = {(brickX+1)%2, brickX%2, (brickY+1)%2, brickY%2, (brickZ+1)%2, brickZ%2};
+				const size_t EDGE[6] = {(brickX+1)%2, brickX%2, (brickY+1)%2, brickY%2, (brickZ+1)%2, brickZ%2};
 				size_t current_brick[3] = {b[0]*2+brickX, b[1]*2+brickY, b[2]*2+brickZ};
 				size_t current_id = GetBrickId(current_brick, bpd);
-				/*printf("%d || %d %d %d || %d %d %d %d %d %d || %d %d %d\n", current_id, current_brick[0],current_brick[1],current_brick[2],edge[0],edge[1],edge[2],edge[3],edge[4],edge[5], bpd[0], bpd[1], bpd[2]); */
-				/* front */
-				if(edge[4] == 1 && GDIM > 0) {
-					/* ghostcells */
-					if(current_brick[2] > 0) {
-						size_t ob[3] = {current_brick[0], current_brick[1],current_brick[2]-1};
-						size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE + GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-2*GDIM*GBSIZE*GBSIZE;
-						size_t line = 2*GDIM*GBSIZE*GBSIZE;
-						if(ReadLine(f, data, cur, line, offset) != 0)
-							printf("error front gc\n");
-						cur+=line;
-					} else {
-						size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE;
-						size_t line = GDIM*GBSIZE*GBSIZE;
-						if(ReadLine(f, data, cur, line, offset) != 0)
-							printf("error front no gc\n");
-						memcpy(&data[cur+line], &data[cur], line);
-						cur+=2*line;
-					}
+				size_t offset = current_id*GBSIZE*GBSIZE*GBSIZE;
+				if(ReadLine(fin, data, cur, GBSIZE*GBSIZE*GBSIZE, offset) != 0) {
+					printf("ReadLine error\n");
+					return 1;
 				}
-				for(size_t z=0; z<BSIZE; z++) {
-					for(size_t y=0; y<GBSIZE; y++) {
-						/* top */
-						if(edge[2] == 1 && y < GDIM) {
-							/* ghostcells */
-							if(current_brick[1] > 0) {
-								size_t ob[3] = {current_brick[0], current_brick[1]-1, current_brick[2]};
-								size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE + z*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-2*GDIM*GBSIZE;
-								size_t line = 2*GDIM*GBSIZE;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("error top gc\n");
-								cur+=line;	
-							} else {
-								size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
-								size_t line = GDIM*GBSIZE;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("error top no gc\n");
-								memcpy(&data[cur+line], &data[cur], line);
-							}
-						}
-						/* left */
-						if(edge[0] == 1 && y>=GDIM && y<(BSIZE+GDIM)) {
-							if(current_brick[0] > 0) {
-								size_t ob[3] = {current_brick[0]-1, current_brick[1], current_brick[2]};
-								size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE + GDIM*GBSIZE*GBSIZE+z*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
-								size_t line = 2*GDIM;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("error left gc\n");
-								cur+=line;
-								
-							} else {
-								size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
-								if(ReadLine(f, data, cur, 1, offset) != 0)
-									printf("error left no gc\n");
-								for(size_t i=0; i<2*GDIM; i++) 
-									data[cur+i] = data[cur];
-								cur+=2*GDIM;
-									
-							}
-						}
-						/* finally real data */
-						if(y>=GDIM && y<(GDIM+BSIZE)) {
-						size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
-						if(ReadLine(f, data, cur, BSIZE, offset) != 0)
-							printf("error reading 'real data'\n");
-						cur+=BSIZE;
-						}
-						/* right */
-						if(edge[1] == 1 && y>=GDIM && y<(BSIZE+GDIM)) {
-							if(current_brick[0]+1 < bpd[0]) {
-								size_t ob[3] = {current_brick[0]+1, current_brick[1], current_brick[2]};
-								size_t offset = fo+GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+(GDIM+z)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
-								size_t line = 2*GDIM;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("error right gc \n");
-								cur+=line;									
-							} else {
-								size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
-								if(ReadLine(f, data, cur, 1, offset) != 0)
-									printf("error right no gc\n");
-								for(size_t i=0; i<2*GDIM; i++) 
-									data[cur+i] = data[cur];
-								cur+=2*GDIM;	
-							}
-						}
-						/* bot */
-						if(edge[3] == 1 && y>=(GBSIZE+GDIM)) {
-							if(current_brick[1]+1 < bpd[1]) {
-								size_t ob[3] = {current_brick[0], current_brick[1]+1, current_brick[2]};
-								size_t offset = fo+GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+(z+GDIM) *GBSIZE*GBSIZE+GDIM*GBSIZE;
-								size_t line = 2*GDIM*GBSIZE;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("bot gc error\n");
-								cur+=line;
-								
-							} else {
-								size_t offset = fo+current_id*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-GBSIZE;
-								size_t line = GBSIZE;
-								if(ReadLine(f, data, cur, line, offset) != 0)
-									printf("bot no gc error\n");
-								for(size_t i=0; i<2*GDIM-line; i++) 
-									data[cur+line+i] = data[cur];
-								cur+=2*GDIM;
-							}
-						}						
-					}
+				uint8_t *offsetData = malloc(sizeof(uint8_t) * (GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM);
+				if(GetOffsets(fin, data, offset, offsetData, BSIZE, GDIM, GBSIZE, current_brick, current_id, bpd, EDGE) != 0) {
+					printf("GetOffsets error\n");
+					return 1;
 				}
-				/* back */
-				if(edge[5] == 1 && GDIM > 0) {
-					/* ghostcells */
-					if(current_brick[2]+1 < bpd[2]) {
-						size_t ob[3] = {current_brick[0], current_brick[1],current_brick[2]+1};
-						size_t offset = fo + GetBrickId(ob, bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE;
-						size_t line = 2*GDIM*GBSIZE*GBSIZE;
-						if(ReadLine(f, data, cur, line, offset) != 0)
-							printf("error back gc\n");
-						cur+=line;
-					} else {
-						size_t offset = fo + current_id*GBSIZE*GBSIZE*GBSIZE+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-GBSIZE*GBSIZE;
-						size_t line = GBSIZE*GBSIZE;
-						if(ReadLine(f, data, cur, line, offset) != 0)
-							printf("error back no gc\n");
-						memcpy(&data[cur+line], &data[cur], line);
-						cur+=2*line;
-					}
+				if(SetLowerResolution(fout, data, offsetData, BSIZE, GDIM, GBSIZE, current_brick, current_id, EDGE) != 0) {
+					printf("LowerRes error\n");
+					return 1;
 				}
+				
+				cur+=GBSIZE*GBSIZE*GBSIZE;
 			}
 		}
-	}		
+	}
 	return 0;
 }
+
+
 
 size_t GetNewLOD(FILE* fin, FILE* fout, size_t ORIG_BPD[3], const size_t ORIG_VOLUME[3], size_t cur_bpd[3], size_t cur_bricks, const size_t BSIZE, const size_t GDIM, size_t lod)
 {
@@ -277,10 +316,11 @@ size_t GetNewLOD(FILE* fin, FILE* fout, size_t ORIG_BPD[3], const size_t ORIG_VO
 		size_t b[3];
 		GetBrickCoordinates(b, cur_bpd, no_b);
 		uint8_t *data = malloc(sizeof(uint8_t) * GetNumberOfVoxels(ORIG_BPD,GBSIZE,GDIM));
-		if(GetBricks(fin, data, b, old_bpd, BSIZE, GDIM, GBSIZE) != 0) {
+		if(Get8Bricks(fin, fout, data, b, old_bpd, BSIZE, GDIM, GBSIZE) != 0) {
 			printf("Error@GetBricks()\n");
 			return 1;
 		}
+		free(data);
 	}
 }
 
