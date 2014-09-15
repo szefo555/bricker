@@ -322,7 +322,13 @@ printf("\n%d %d %d %d %d %d\n", EDGE[0],EDGE[1],EDGE[2],EDGE[3],EDGE[4],EDGE[5])
 	/* uneven number of voxels? */
 	size_t start[3] = {0,0,0};
 	size_t bs = BSIZE;
-	/*TODO*/
+	/*TODO
+		-this
+		-collapse running ok?
+		-check edges
+		-start @ fulloffset
+		-meta header
+	*/
 
 	for(size_t z=0; z<BSIZE; z++) {
 		for(size_t y=0; y<GBSIZE; y++) {
@@ -511,7 +517,9 @@ int main(int argc, char* argv[])
 	
 	/* offset after every bricking/multires step */
 	size_t lod = 1;
-	size_t full_offset = 0;
+	size_t full_offset = bricks_per_dimension[0]*GBSIZE+bricks_per_dimension[1]*GBSIZE+bricks_per_dimension[2]*GBSIZE;
+	size_t lod_fo=0;
+	printf("%d \n", full_offset);
 	bool finished = false;
 	int ct=0;
 	while(lod==1) {
@@ -526,7 +534,8 @@ int main(int argc, char* argv[])
 			old_bpd[2] = new_bpd[2];
 		}
 		//printf("==%d %d\n",new_no_b, ct++);
-		GetNewLOD(fpo, fpm, bricks_per_dimension, VOLUME, new_bpd, new_no_b,BRICKSIZE,GHOSTCELLDIM,lod);	
+		GetNewLOD(fpo, fpm, bricks_per_dimension, VOLUME, new_bpd, new_no_b,BRICKSIZE,GHOSTCELLDIM,lod);
+		lod_fo+=new_bpd[0]*GBSIZE+new_bpd[1]*GBSIZE+new_bpd[2]*GBSIZE;	
 		lod++;
 		if(new_no_b<2)
 			finished=true;
