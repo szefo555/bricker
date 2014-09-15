@@ -102,9 +102,9 @@ size_t ReadFile(FILE *f, const size_t VOLUME[3], uint8_t *data, int src[3], cons
 	return 0;
 }
 
-size_t WriteBrick(FILE *f, uint8_t *data, size_t length, size_t buf)
+size_t WriteBrick(FILE *f, uint8_t *data, size_t length, size_t off)
 {
-	fseek(f, buf, SEEK_SET);
+	fseek(f, off, SEEK_SET);
 	if(fwrite(&data[0], sizeof(uint8_t), length, f) != length)
 		printf("fwrite error\n");
 	return 0;
@@ -122,12 +122,7 @@ size_t ReadLine(FILE* f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 	return 0;
 }
 
-size_t GetNumberOfVoxels(size_t bpd[3], const size_t GBSIZE, const size_t GDIM)
-{
-	return 8*GBSIZE*GBSIZE*GBSIZE;
-}
-
-size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t b[3], size_t id, size_t bpd[3], const size_t EDGE[6])
+size_t GetOffsets(FILE* f, uint8_t *data, uint8_t *o_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t b[3], size_t id, size_t bpd[3], const size_t EDGE[6])
 {
 	size_t cur = 0;
 	size_t fo = 0;
@@ -142,7 +137,7 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 				printf("error front gc\n");
 			cur+=line;
 		} else {
-			size_t offset = d_offset+GDIM*GBSIZE*GBSIZE;
+			size_t offset = GDIM*GBSIZE*GBSIZE;
 			size_t line = GDIM*GBSIZE*GBSIZE;
 			memcpy(&o_data[cur], &data[offset], line);
 			cur+=line;
@@ -160,7 +155,7 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 				printf("error back gc\n");
 			cur+=line;
 		} else {
-			size_t offset = d_offset+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-GBSIZE*GBSIZE;
+			size_t offset = GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-GBSIZE*GBSIZE;
 			size_t line = GBSIZE*GBSIZE;
 			memcpy(&o_data[cur], &data[offset], line);
 			cur+=line;
@@ -180,8 +175,7 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 						printf("error top gc\n");
 					cur+=line;	
 				} else {
-					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
-					if(id==0)printf("%d || %d \n", data[offset], cur);
+					size_t offset = (z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
 					size_t line = GDIM*GBSIZE;
 					memcpy(&o_data[cur], &data[offset], line);
 					cur+=line;
@@ -199,7 +193,7 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 						printf("bot gc error\n");
 					cur+=line;
 				} else {
-					size_t offset = fo+d_offset+(z+GDIM)*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-GBSIZE;
+					size_t offset = fo+(z+GDIM)*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-GBSIZE;
 					size_t line = GBSIZE;
 					memcpy(&o_data[cur], &data[offset], line);
 					cur+=line;
@@ -222,8 +216,7 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 					cur+=line;
 					
 				} else {
-					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
-
+					size_t offset = (z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GDIM;
 					size_t line=GDIM;
 					memcpy(&o_data[cur], &data[offset], line);
 					cur+=line;
@@ -239,9 +232,9 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 					size_t line = 2*GDIM;
 					if(ReadLine(f, data, cur, line, offset) != 0)
 						printf("error right gc \n");
-					cur+=line;									
+					cur+=line;								
 				} else {
-					size_t offset = d_offset+(z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM;
+					size_t offset = (z+GDIM)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM;
 					size_t line = GDIM;
 					memcpy(&o_data[cur], &data[offset], line);
 					cur+=line;
@@ -252,9 +245,9 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 		}
 	}
 
-	printf("\n\n%d || %d %d %d %d %d %d \n", id, EDGE[0],EDGE[1],EDGE[2],EDGE[3],EDGE[4],EDGE[5]);
-
-
+	//printf("\n\n%d || %d %d %d %d %d %d \n", id, EDGE[0],EDGE[1],EDGE[2],EDGE[3],EDGE[4],EDGE[5]);
+//printf("\n%d\n",id);
+if(GDIM>0) {
 	printf("\nfront/back\n");
 	for(size_t front=0; front<GBSIZE*GBSIZE*2*GDIM; front++)
 		printf("%d ", o_data[front]);
@@ -264,14 +257,116 @@ size_t GetOffsets(FILE* f, uint8_t *data, size_t d_offset, uint8_t *o_data, cons
 	printf("\nl/r\n");
 	for(size_t l=0; l<BSIZE*BSIZE*2*GDIM; l++)
 		printf("%d ", o_data[GBSIZE*GBSIZE*2*GDIM+2*GDIM*GBSIZE*BSIZE+l]);
-
+}
+	return 0;
 }
 
-size_t SetLowerResolution(FILE *f,uint8_t *data, uint8_t *o_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t current_brick, size_t current_id, size_t EDGE[3])
+uint8_t CollapseVoxels(uint8_t *data, size_t off, size_t b[3], const size_t GBSIZE)
+{
+	size_t out = 0;
+	size_t o = off+b[0]+b[1]*GBSIZE+b[2]*GBSIZE*GBSIZE;
+	for(size_t z=0; z<2; z++) {
+		for(size_t y=0; y<2; y++) {
+			for(size_t x=0; x<2; x++) {
+				out+=data[o+x+y*GBSIZE+z*GBSIZE*GBSIZE];
+				printf("%d ",data[o+x+y*GBSIZE+z*GBSIZE*GBSIZE]);
+			}
+		}
+	}
+printf("\n%d %d %d : %d\n",b[0],b[1],b[2],out/8);
+	return out/8;
+}
 
-size_t Get8Bricks(FILE* fin, FILE* fout, uint8_t *data, size_t b[3], size_t bpd[3], const size_t BSIZE, const size_t GDIM, const size_t GBSIZE)
+size_t LowerLOD(FILE *f, uint8_t *data, uint8_t *ghostcells, size_t output_off, const size_t GBSIZE, size_t bno, size_t b[3], size_t bpd[3], size_t GDIM, const size_t EDGE[6])
+{
+	size_t output_offset = output_off+bno*GBSIZE*GBSIZE*GBSIZE/8;
+	size_t input_offset = GBSIZE*GBSIZE*GDIM+GBSIZE*GDIM+GDIM;
+	size_t BSIZE = GBSIZE-2*GDIM;
+	uint8_t t[1]={42};
+	/* write ghostcells into data */
+	for(size_t z=0; z<GDIM; z++) {
+		for(size_t y=0; y<GBSIZE/2; y++) {
+			for(size_t x=0; x<GBSIZE/2; x++) {
+			}
+		}
+	}
+				
+	printf("\n");
+	for(size_t i=0; i<GBSIZE*GBSIZE*GBSIZE; i++)
+		printf("%d ",data[i]);
+	printf("\n");
+	for(size_t z=0; z<BSIZE/2; z++) {
+		for(size_t y=0; y<BSIZE/2; y++) {
+			for(size_t x=0; x<BSIZE/2; x++) {
+				size_t small_b[3] = {x*2,y*2,z*2};
+				uint8_t out[1] = {CollapseVoxels(data, input_offset, small_b, GBSIZE)};
+				if(WriteBrick(f, out, 1, output_offset) != 0)
+					return 1; 
+				output_offset++;
+			}
+		}
+	}
+	return 0;
+}
+
+
+void ReorganiseArray(uint8_t *data, uint8_t *o_data, uint8_t *f_data, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, const size_t EDGE[6])
+{
+printf("\n%d %d %d %d %d %d\n", EDGE[0],EDGE[1],EDGE[2],EDGE[3],EDGE[4],EDGE[5]);
+	size_t cur =0;
+	size_t o[2] = {2*GDIM*GBSIZE*GBSIZE, 2*GDIM*GBSIZE*GBSIZE+2*GDIM*GBSIZE*BSIZE};
+	if(EDGE[4]==1) {
+		memcpy(&f_data[cur], &o_data[0], 2*GDIM*GBSIZE*GBSIZE);
+		cur+=2*GDIM*GBSIZE*GBSIZE;
+	}
+	/* uneven number of voxels? */
+	size_t start[3] = {0,0,0};
+	size_t bs = BSIZE;
+	/*TODO*/
+
+	for(size_t z=0; z<BSIZE; z++) {
+		for(size_t y=0; y<GBSIZE; y++) {
+			if(y<GDIM&&EDGE[2]==1) {
+				memcpy(&f_data[cur], &o_data[o[0]+z*2*GDIM*GBSIZE+y*2*GDIM*GBSIZE], 2*GDIM*GBSIZE);
+				cur+=2*GDIM*GBSIZE; printf("hi");
+				continue;
+			}
+			if(y>=GDIM&&y<GBSIZE-GDIM) {
+				if(EDGE[0]==1) {
+					memcpy(&f_data[cur], &o_data[o[1]+z*2*GDIM*2*GDIM+(y-GDIM)*2*GDIM], 2*GDIM);
+					printf("%d <<<<<<<<<<<<<<<<<<\n",o_data[o[1]+z*2*GDIM*2*GDIM+(y-GDIM)*2*GDIM]);
+					cur+=2*GDIM; printf("he");
+				}					
+				memcpy(&f_data[cur], &data[GBSIZE*GBSIZE*GDIM+GBSIZE*GDIM+GDIM+z*GBSIZE*GBSIZE+(y-GDIM)*GBSIZE], bs);
+				cur+=BSIZE;
+				if(EDGE[1]==1) {
+					memcpy(&f_data[cur], &o_data[o[1]+z*2*GDIM*2*GDIM+(y-GDIM)*2*GDIM], 2*GDIM);
+					printf("%d <<<<<<<<<<<<<<<<<<\n",o_data[o[1]+z*2*GDIM*2*GDIM+(y-GDIM)*2*GDIM]);
+					cur+=2*GDIM; printf("he");
+				}	
+			}
+			if(y>=GBSIZE-GDIM&&EDGE[3]==1) {
+				memcpy(&f_data[cur], &o_data[o[0]+z*2*GDIM*GBSIZE+(y-(GBSIZE-GDIM))*2*GDIM*GBSIZE], 2*GDIM*GBSIZE);
+				cur+=2*GDIM*GBSIZE; printf("ho");
+				continue;
+			}
+		}
+	}
+	if(GDIM&&EDGE[5]==1) {
+		memcpy(&f_data[cur], &o_data[0], 2*GDIM*GBSIZE*GBSIZE);
+		cur+=2*GDIM*GBSIZE*GBSIZE;
+	}
+	printf("\n %d f_data:", cur);
+	for(size_t i=0; i<2*GDIM*GBSIZE*GBSIZE+2*GDIM*GBSIZE*2*GDIM+2*GDIM*BSIZE*GBSIZE; i++)
+		printf("%d ", f_data[i]);
+	printf("\n");
+}
+
+size_t Get8Bricks(FILE* fin, FILE* fout,  size_t b[3], size_t bpd[3], size_t nb, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE)
 {
 	size_t cur = 0;
+	size_t cur_out = nb*8;
+	printf("%d %d\n",nb, nb);
 	size_t fo = 0; /* NEEDS FULL OFFSET */
 	for(size_t brickZ=0; brickZ<2; brickZ++) {
 		for(size_t brickY=0; brickY<2; brickY++) {
@@ -280,28 +375,33 @@ size_t Get8Bricks(FILE* fin, FILE* fout, uint8_t *data, size_t b[3], size_t bpd[
 				size_t current_brick[3] = {b[0]*2+brickX, b[1]*2+brickY, b[2]*2+brickZ};
 				size_t current_id = GetBrickId(current_brick, bpd);
 				size_t offset = current_id*GBSIZE*GBSIZE*GBSIZE;
-				if(ReadLine(fin, data, cur, GBSIZE*GBSIZE*GBSIZE, offset) != 0) {
+				uint8_t *data = malloc(sizeof(uint8_t) * GBSIZE*GBSIZE*GBSIZE);
+				if(ReadLine(fin, data, 0, GBSIZE*GBSIZE*GBSIZE, offset) != 0) {
 					printf("ReadLine error\n");
 					return 1;
 				}
 				uint8_t *offsetData = malloc(sizeof(uint8_t) * (GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM);
-				if(GetOffsets(fin, data, offset, offsetData, BSIZE, GDIM, GBSIZE, current_brick, current_id, bpd, EDGE) != 0) {
+
+				if(GetOffsets(fin, data, offsetData, BSIZE, GDIM, GBSIZE, current_brick, current_id, bpd, EDGE) != 0) {
 					printf("GetOffsets error\n");
 					return 1;
 				}
-				if(SetLowerResolution(fout, data, offsetData, BSIZE, GDIM, GBSIZE, current_brick, current_id, EDGE) != 0) {
+				uint8_t *finalData = malloc(sizeof(uint8_t) * (GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+GBSIZE*GBSIZE*GBSIZE);
+				ReorganiseArray(data, offsetData, finalData, BSIZE, GDIM, GBSIZE, EDGE);
+				/*
+				if(LowerLOD(fout, data, offsetData, cur_out, GBSIZE, nb, b, bpd, GDIM, EDGE) != 0) {
 					printf("LowerRes error\n");
 					return 1;
 				}
-				
+				*/
+				cur_out+=8;
+				//printf("\n %d \n", cur_out);
 				cur+=GBSIZE*GBSIZE*GBSIZE;
 			}
 		}
 	}
 	return 0;
 }
-
-
 
 size_t GetNewLOD(FILE* fin, FILE* fout, size_t ORIG_BPD[3], const size_t ORIG_VOLUME[3], size_t cur_bpd[3], size_t cur_bricks, const size_t BSIZE, const size_t GDIM, size_t lod)
 {
@@ -313,16 +413,17 @@ size_t GetNewLOD(FILE* fin, FILE* fout, size_t ORIG_BPD[3], const size_t ORIG_VO
 	}
 	printf("%d\n",cur_bricks);
 	for(size_t no_b=0; no_b < cur_bricks; no_b++) {
+		size_t output_offset = no_b*GBSIZE*GBSIZE*GBSIZE;
 		size_t b[3];
 		GetBrickCoordinates(b, cur_bpd, no_b);
-		uint8_t *data = malloc(sizeof(uint8_t) * GetNumberOfVoxels(ORIG_BPD,GBSIZE,GDIM));
-		if(Get8Bricks(fin, fout, data, b, old_bpd, BSIZE, GDIM, GBSIZE) != 0) {
-			printf("Error@GetBricks()\n");
+		if(Get8Bricks(fin, fout, b, old_bpd, no_b, BSIZE, GDIM, GBSIZE) != 0) {
+			printf("Error@Get8Bricks()\n");
 			return 1;
 		}
-		free(data);
+		
 	}
 }
+
 
 int main(int argc, char* argv[]) 
 {
@@ -392,8 +493,8 @@ int main(int argc, char* argv[])
 		if(ReadFile(fpi, VOLUME, data, src, GBSIZE, edge, no_b) != 0) 
 			return EXIT_FAILURE;
 
-		size_t buffer = no_b*GBSIZE*GBSIZE*GBSIZE;
-		WriteBrick(fpo, data, GBSIZE*GBSIZE*GBSIZE, buffer);
+		size_t offset = no_b*GBSIZE*GBSIZE*GBSIZE;
+		WriteBrick(fpo, data, GBSIZE*GBSIZE*GBSIZE, offset);
 		free(data);
 		//printf("Brick %d done\n", no_b);
 	}
@@ -413,7 +514,7 @@ int main(int argc, char* argv[])
 	size_t full_offset = 0;
 	bool finished = false;
 	int ct=0;
-	while(!finished) {
+	while(lod==1) {
 		printf("### LOD Level %d ###\n", lod);
 		size_t new_no_b=0; 
 		size_t new_bpd[3] = {0,0,0};
