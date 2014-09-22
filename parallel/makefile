@@ -2,8 +2,8 @@ WARN = -Wall -Wextra -Werror -Wconversion
 CC = mpicc
 CFLAGS = -std=c99 -O3
 LDFLAGS = -lm
-HEADERS = file_io.h rw.h multires.h
-OBJECTS = bricker.o file_io.o rw.o multires.o
+HEADERS = lod.h brick.h mpi_init.h misc.h
+OBJECTS = main.o lod.o brick.o mpi_init.o misc.o
 
 all: bricker
 
@@ -11,9 +11,9 @@ all: bricker
 	$(CC) -g $(CFLAGS) $WARN $< -o $(LDFLAGS)
 
 bricker: $(OBJECTS)
-	$(CC) -g $(CFLAGS) $(OBJECTS) $(LDFLAGS) -o bricker
+	$(CC) -g $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:
-	rm -f *.o bricker *.raw stdout stderr
+	rm -f *.o main *.raw stdout stderr
 
 
