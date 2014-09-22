@@ -24,13 +24,13 @@ int main(int argc, char* argv[])
 	char *endptr = NULL;
 	/* Size of the volume {x,y,z} */
 	size_t *VOLUME = malloc(sizeof(size_t)*3);
-	VOLUME[0]=strtol(argv[1], &endptr, 10);
-	VOLUME[1]=strtol(argv[2], &endptr, 10);
-	VOLUME[2]=strtol(argv[3], &endptr, 10);
+	VOLUME[0]=(size_t)strtol(argv[1], &endptr, 10);
+	VOLUME[1]=(size_t)strtol(argv[2], &endptr, 10);
+	VOLUME[2]=(size_t)strtol(argv[3], &endptr, 10);
 	/* Dimension of the brick incl. ghostcell */
-	const size_t BRICKDIM = strtol(argv[4], &endptr, 10);
+	const size_t BRICKDIM = (size_t)strtol(argv[4], &endptr, 10);
 	/* Size of ghost cells for later subtraction */
-	const size_t GHOSTCELLDIM = strtol(argv[5], &endptr, 10);
+	const size_t GHOSTCELLDIM = (size_t)strtol(argv[5], &endptr, 10);
 	/* subtract size of ghostcells*2 to get "real" size of bricks */
 	const size_t BRICKSIZE = BRICKDIM - GHOSTCELLDIM*2;
 	if(BRICKSIZE<1) {
@@ -49,20 +49,16 @@ int main(int argc, char* argv[])
 	/* INITIALIZATION */
 	size_t *myoffsets = malloc(sizeof(size_t)*3);
 	size_t mybricks;
-	size_t *offsets;
 	size_t bricks[size];
 	size_t starting_brick[size];
 	size_t mystart;
 	size_t GBSIZE=BRICKSIZE+2*GHOSTCELLDIM;
 
-	if(Init_MPI(rank, size, mybricks, mystart, myoffsets, bricks, starting_brick, offsets, numberofbricks, VOLUME, BRICKSIZE) != 0) {
+	if(Init_MPI(rank, size, &mybricks, &mystart, myoffsets, bricks, starting_brick, numberofbricks, VOLUME, BRICKSIZE) != 0) {
 		printf("ERROR @ Init_MPI\n");
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
 	printf("RANK: %d BRICKS: %d OFFSET_X %d OFFSET_Y %d OFFSET_Z %d\n", rank, mybricks, myoffsets[0], myoffsets[1], myoffsets[2]);
-	/* local offsets for every rank */
-	size_t offset[3] = {myoffsets[0],myoffsets[1],myoffsets[2]};
-	size_t orig_offset[3] = {offset[0],offset[1],offset[2]};
 
 	/* BRICKING START */
 
@@ -99,7 +95,6 @@ int main(int argc, char* argv[])
 	/* TODO set finished correct */
 	bool finished = false;
 	while(!finished) {
-		MPI_Barrier(MPI_COMM_WORLD);
 		/* read from */
 		MPI_File fin;
 		MPI_File fout;
@@ -129,11 +124,13 @@ int main(int argc, char* argv[])
 			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 		}
 		printf("File %s opened\n", filename_write);
-
 		if(rank==0)
-		printf("### LOD Level %d ###\n", lod);
+			printf("### LOD Level %d ###\n", lod);
 		size_t new_no_b=0;
 		size_t *new_bpd = malloc(sizeof(size_t)*3);
+		new_bpd[0] = 0;
+		new_bpd[1] = 0;
+		new_bpd[2] = 0;
 		size_t *old_bpd = malloc(sizeof(size_t)*3);
 		old_bpd[0] = bricks_per_dimension[0];
 		old_bpd[1] = bricks_per_dimension[1];
@@ -145,7 +142,11 @@ int main(int argc, char* argv[])
 			old_bpd[2] = new_bpd[2];
 		}
 		/* Calculate next LOD */
-		GetNewLOD(fin, fout, bricks_per_dimension, new_bpd, new_no_b,BRICKSIZE,GHOSTCELLDIM,lod,rank,size);
+		if(GetNewLOD(fin, fout, bricks_per_dimension, new_bpd, new_no_b,BRICKSIZE,GHOSTCELLDIM,lod,rank,size) != 0) {
+			printf("ERROR: Rank %d @ GetNewLOD()\n",rank);
+			MPI_Abort(MPI_COMM_WORLD,EXIT_FAILURE);
+		}
+		printf("Rank %d just finished LOD %d %d\n", rank, lod, new_no_b);
 		lod++;
 		free(new_bpd);
 		free(old_bpd);

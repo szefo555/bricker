@@ -23,7 +23,7 @@ size_t NBricks(size_t *VOLUME, const size_t BRICKSIZE, size_t *bdim)
 }
 
 /* right, bot, back */
-void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, size_t *VOLUME, const size_t BRICKSIZE, int src[3], size_t bno) {
+void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, size_t *VOLUME, const size_t BRICKSIZE, int src[3]) {
 	/* left top front */
 	for(size_t i=0; i<3; i++) {
 		if(src[i]<0) {
@@ -33,9 +33,9 @@ void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, size_t *VOLUME, cons
 		}
 	}
 	/* right bot back */
-	for(size_t i=0; i<3; i++) {
+	for(int i=0; i<3; i++) {
 		if(b[i]+GDIM>VOLUME[i]/BRICKSIZE)
-			edge[i*2+1]=GDIM;
+			edge[i*2+1]=(int)GDIM;
 	}
 }
 
@@ -55,16 +55,28 @@ size_t GetBrickId(size_t b[3], size_t bpd[3])
 size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 {
 	MPI_File_seek(f, off, MPI_SEEK_SET);
-	/*TODO check fwrite*/
-	MPI_File_write(f, &data[0], length, MPI_UNSIGNED_CHAR, MPI_STATUS_IGNORE);
+	MPI_Status stat;
+	int count;
+	MPI_File_write(f, &data[0], (int)length, MPI_UNSIGNED_CHAR, &stat);
+	MPI_Get_count(&stat, MPI_UNSIGNED_CHAR, &count);
+	if(count!=(int)length) {
+		fprintf(stderr, "ERROR @ writing brick to file\n");
+		return 1;
+	}
+
 	return 0;
 }
-
 
 size_t ReadLine(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 {
 	MPI_File_seek(f, off, MPI_SEEK_SET);
-	/*TODO check fread*/
-	MPI_File_read(f, &data[cur], LINE, MPI_UNSIGNED_CHAR, MPI_STATUS_IGNORE);
+	MPI_Status stat;
+	int count;
+	MPI_File_read(f, &data[cur], (int)LINE, MPI_UNSIGNED_CHAR, &stat);
+	MPI_Get_count(&stat, MPI_UNSIGNED_CHAR, &count);
+	if(count!=(int)LINE) {
+		fprintf(stderr, "ERROR @ reading file\n");
+		return 1;
+	}
 	return 0;
 }
