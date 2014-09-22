@@ -8,6 +8,9 @@
 #include "misc.h"
 #include "mpi_init.h"
 
+/* read 8 bricks needed for next LOD 
+  every brick could be loaded seperatly, but this makes 
+  reorganising the array possible */
 size_t Get8Bricks(MPI_File fin, uint8_t *data, size_t b[3], size_t last_bpd[3], const size_t GBSIZE)
 {
 	size_t write_offset = 0;
@@ -29,6 +32,7 @@ size_t Get8Bricks(MPI_File fin, uint8_t *data, size_t b[3], size_t last_bpd[3], 
 	return 0;
 }
 
+/* get ghostcells for current brick. if brick is at an edge, duplicate cells at edge */
 size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uint8_t *ghostcells, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t b[3], size_t old_bpd[3], const size_t EDGE[6])
 {
 	size_t write_at = 0;
@@ -160,6 +164,28 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 	return 0;
 }
 
+/* set ghostcells and data in the right 'order' so that we can iterate over it @ the CollapseVoxels() function 
+eg:
+input : blocks A,B,C,D (-> Get8Bricks() - in the 2d case Get4())
+
+how it should look after reorganisation (small letters are cells of bricks, g = ghostcells of small letter)
+
+	ga ga ga ga gb gb gb gb
+	ga ga ga ga gb gb gb gb
+	ga ga a  a  b  b  gb gb
+	ga ga a  a  b  b  gb gb
+        gc gc c  c  d  d  gd gd
+        gc gc c  c  d  d  gd gd
+	gc gc gc gc gd gd gd gd
+	gc gc gc gc gd gd gd gd 
+
+desired end product:
+	g g g
+	g N g
+	g g g
+where N = new brick of constant size (= Bricksize + 2*ghostcelldimension)
+*/
+
 void ReorganiseArray(uint8_t *data, uint8_t *ghostcells, uint8_t *finalData, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, const size_t EDGE[6], size_t b[3])
 {
 	const size_t ID = b[0]+b[1]*2+b[2]*4;
@@ -238,6 +264,7 @@ void ReorganiseArray(uint8_t *data, uint8_t *ghostcells, uint8_t *finalData, con
 	}
 }
 
+/* iterate over reorganised array, get 8 needed voxels and collapse them */
 uint8_t CollapseVoxels(uint8_t *data, size_t b[3], const size_t GBSIZE)
 {
 	size_t out = 0;
@@ -252,6 +279,7 @@ uint8_t CollapseVoxels(uint8_t *data, size_t b[3], const size_t GBSIZE)
 	return (uint8_t)out/8;
 }
 
+/* for each brick in NEXT LOD ... */
 size_t LowerLOD(MPI_File f, uint8_t *data, const size_t GBSIZE, size_t output_offset)
 {
 	for(size_t z=0; z<GBSIZE; z++) {
@@ -268,6 +296,7 @@ size_t LowerLOD(MPI_File f, uint8_t *data, const size_t GBSIZE, size_t output_of
 	return 0;
 }
 
+/* main loop */
 size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_bpd, size_t current_no_bricks, const size_t BSIZE, const size_t GDIM, size_t lod, int rank, int s)
 {
 	if(s<0)

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <mpi.h>
 
+/* offsets for parallel bricking */
 void getOffsets(size_t *o, size_t *b, const size_t *VOLUME, const size_t BS, size_t size)
 {
     o[0] = 0;
@@ -31,6 +32,7 @@ void getOffsets(size_t *o, size_t *b, const size_t *VOLUME, const size_t BS, siz
     }
 }
 
+/* # of bricks for parallel bricking */
 void getBricks(size_t *b, size_t *sb, size_t size, size_t nb)
 {
     size_t mybricks = nb/size;

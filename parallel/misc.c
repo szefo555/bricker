@@ -22,7 +22,8 @@ size_t NBricks(size_t *VOLUME, const size_t BRICKSIZE, size_t *bdim)
 	return bdim[0]*bdim[1]*bdim[2];
 }
 
-/* right, bot, back */
+/* check if brick is at any edge (aka no ghostcells) 
+  eg top left brick in ^3 volue has ALWAYS left, top and front edge */
 void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, size_t *VOLUME, const size_t BRICKSIZE, int src[3]) {
 	/* left top front */
 	for(size_t i=0; i<3; i++) {
@@ -51,7 +52,7 @@ size_t GetBrickId(size_t b[3], size_t bpd[3])
 	return b[0]+b[1]*bpd[0]+b[2]*bpd[0]*bpd[1];
 }
 
-
+/* Writes a Brick into a file */
 size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 {
 	MPI_File_seek(f, off, MPI_SEEK_SET);
@@ -67,6 +68,8 @@ size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 	return 0;
 }
 
+
+/* Read from a file */
 size_t ReadLine(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 {
 	MPI_File_seek(f, off, MPI_SEEK_SET);
