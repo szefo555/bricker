@@ -37,8 +37,7 @@ size_t ReadFile(MPI_File f, size_t *VOLUME, uint8_t *data, int src[3], const siz
 				LINE--;
 				edge[1]++;
 			}
-			//printf("%d || %d %d %d || %d || %d \n",bno, src[0], src[1], src[2], LINE, edge[1]);
-			const size_t COPY_FROM = (size_t)src[0]+(size_t)src[1]*VOLUME[0]+(size_t)src[2]*VOLUME[0]*VOLUME[1];
+			MPI_Offset COPY_FROM = src[0]+src[1]*(int)VOLUME[0]+src[2]*(int)VOLUME[0]*(int)VOLUME[1];
 			MPI_File_seek(f, COPY_FROM, MPI_SEEK_SET);
 			MPI_Status stat;
 			int count;

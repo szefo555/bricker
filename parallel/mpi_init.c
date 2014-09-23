@@ -62,7 +62,7 @@ size_t Init_MPI(int rank, int size, size_t *mybricks, size_t *mystart, size_t *m
 		myoffsets[1] = 0;
 		myoffsets[2] = 0;
 		for(int i=1; i<size; i++) {
-			printf("%d %d %d %d %d\n",i, bricks[i], starting_brick[i], offsets[i*3+2], 42);
+			printf("%zu %zu %zu\n",offsets[i*3], offsets[i*3+1], offsets[i*3+2]);
 			if(MPI_Send(&offsets[i*3+0], 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != MPI_SUCCESS) {
 				fprintf(stderr, "ERROR sending offset\n");
 				return 1;
@@ -83,13 +83,24 @@ size_t Init_MPI(int rank, int size, size_t *mybricks, size_t *mystart, size_t *m
 				fprintf(stderr, "ERROR sending starting brick\n");
 				return 1;
 			}
-		}		
+		}
 		free(offsets);
 	} else {
 		MPI_Status stat;
 		int count;
+		myoffsets[0]=0;
 		MPI_Recv(&myoffsets[0], 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, &stat);
+		MPI_Get_count(&stat, MPI_UNSIGNED, &count);
+		if(count!=1) {
+			fprintf(stderr, "Rank %d: ERROR receiving offset\n", rank);
+			return 1;
+		}
 		MPI_Recv(&myoffsets[1], 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, &stat);
+		MPI_Get_count(&stat, MPI_UNSIGNED, &count);
+		if(count!=1) {
+			fprintf(stderr, "Rank %d: ERROR receiving offset\n", rank);
+			return 1;
+		}
 		MPI_Recv(&myoffsets[2], 1, MPI_UNSIGNED, 0, 42, MPI_COMM_WORLD, &stat);
 		MPI_Get_count(&stat, MPI_UNSIGNED, &count);
 		if(count!=1) {
@@ -108,7 +119,7 @@ size_t Init_MPI(int rank, int size, size_t *mybricks, size_t *mystart, size_t *m
 			fprintf(stderr, "Rank %d: ERROR receiving starting brick\n", rank);
 			return 1;
 		}
-		printf("%d | %d %d \n", rank, *mybricks, *mystart);
-	}			
+	}	
+	printf("%d %zu %zu %zu\n", rank, myoffsets[0], myoffsets[1], myoffsets[2]);		
 	return 0;
 }

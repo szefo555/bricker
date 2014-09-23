@@ -17,8 +17,8 @@ size_t NBricks(size_t *VOLUME, const size_t BRICKSIZE, size_t *bdim)
 		bdim[i]++;
 		}
 	}
-	//printf("No Bricks : %d\n", bdim[0]*bdim[1]*bdim[2]);
-	//printf("X %d Y %d Z %d\n", bdim[0],bdim[1],bdim[2]);
+	//printf("No Bricks : %zu\n", bdim[0]*bdim[1]*bdim[2]);
+	//printf("X %zu Y %zu Z %zu\n", bdim[0],bdim[1],bdim[2]);
 	return bdim[0]*bdim[1]*bdim[2];
 }
 
@@ -55,7 +55,8 @@ size_t GetBrickId(size_t b[3], size_t bpd[3])
 /* Writes a Brick into a file */
 size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 {
-	MPI_File_seek(f, off, MPI_SEEK_SET);
+	MPI_Offset o = (int)off;
+	MPI_File_seek(f, o, MPI_SEEK_SET);
 	MPI_Status stat;
 	int count;
 	MPI_File_write(f, &data[0], (int)length, MPI_UNSIGNED_CHAR, &stat);
@@ -72,7 +73,8 @@ size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 /* Read from a file */
 size_t ReadLine(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 {
-	MPI_File_seek(f, off, MPI_SEEK_SET);
+	MPI_Offset o = (int)off;
+	MPI_File_seek(f, o, MPI_SEEK_SET);
 	MPI_Status stat;
 	int count;
 	MPI_File_read(f, &data[cur], (int)LINE, MPI_UNSIGNED_CHAR, &stat);

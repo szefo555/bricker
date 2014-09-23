@@ -25,7 +25,7 @@ size_t Get8Bricks(MPI_File fin, uint8_t *data, size_t b[3], size_t last_bpd[3], 
 					return 1;
 				}
 				write_offset+=GBSIZE*GBSIZE*GBSIZE;
-				//printf("%d %d\n", write_offset, offset);
+				//printf("%zu %zu\n", write_offset, offset);
 			}
 		}
 	}
@@ -307,8 +307,8 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 	for(size_t i=0; i<lod-1;i++) {
 		NBricks(last_bpd, 2, last_bpd);
 	}
-	size_t mybricks;
-	size_t mystart;
+	size_t mybricks = 0;
+	size_t mystart = 0;
 	size_t *starting_brick;
 	size_t *bricks;
 	if(rank==0) {
@@ -318,7 +318,7 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 		mybricks=bricks[0];
 		mystart=starting_brick[0];
 		for(int i=1; i<s; i++) {
-			printf("====%d %d\n",starting_brick[i], bricks[i]);
+			printf("====%zu %zu\n",starting_brick[i], bricks[i]);
 			if(MPI_Send(&bricks[i], 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != MPI_SUCCESS) {
 				fprintf(stderr, "ERROR sending # of blocks\n");
 				return 1;
@@ -345,11 +345,10 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 			fprintf(stderr, "Rank %d: ERROR receiving starting brick\n", rank);
 			return 1;
 		}
-		printf("%d %d %d\n",rank, mybricks, mystart);
 	}
 	if(mybricks==0)
 		return 0;
-	printf("Rank %d / Mystart %d / Mybricks %d\n", rank, mystart, mybricks);
+	printf("Rank %d / Mystart %zu / Mybricks %zu\n", rank, mystart, mybricks);
 	/* for each new brick */
 	for(size_t no_b=mystart; no_b < mystart+mybricks; no_b++) {
 		size_t b[3];

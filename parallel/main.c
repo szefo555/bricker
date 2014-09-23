@@ -58,7 +58,7 @@ int main(int argc, char* argv[])
 		printf("ERROR @ Init_MPI\n");
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
-	printf("RANK: %d BRICKS: %d OFFSET_X %d OFFSET_Y %d OFFSET_Z %d\n", rank, mybricks, myoffsets[0], myoffsets[1], myoffsets[2]);
+	printf("RANK: %d BRICKS: %zu OFFSET_X %zu OFFSET_Y %zu OFFSET_Z %zu\n", rank, mybricks, myoffsets[0], myoffsets[1], myoffsets[2]);
 
 	/* BRICKING START */
 
@@ -74,7 +74,7 @@ int main(int argc, char* argv[])
 	/* output file stream */
 	MPI_File fpo;
 	char fn[256];
-	sprintf(fn, "b_%d_%d_%d_%d^3.raw", VOLUME[0], VOLUME[1], VOLUME[2], GBSIZE);
+	sprintf(fn, "b_%zu_%zu_%zu_%zu^3.raw", VOLUME[0], VOLUME[1], VOLUME[2], GBSIZE);
 	err = MPI_File_open(MPI_COMM_WORLD, fn, MPI_MODE_RDWR | MPI_MODE_CREATE, MPI_INFO_NULL, &fpo);
 	if(err) {
 		printf("ERROR opening file %s\n", fn);
@@ -107,7 +107,7 @@ int main(int argc, char* argv[])
 			printf("File %s opened\n", fn);
 		} else {
 			char filename_read[256];
-			sprintf(filename_read, "xmulti_%d.raw", lod-1);
+			sprintf(filename_read, "xmulti_%zu.raw", lod-1);
 			err = MPI_File_open(MPI_COMM_WORLD, filename_read, MPI_MODE_RDONLY, MPI_INFO_NULL, &fin);
 			if(err) {
 				printf("Rank %d: ERROR opening file %s\n", rank, fn);
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 		}
 		/* write to */
 		char filename_write[256];
-		sprintf(filename_write, "xmulti_%d.raw", lod);
+		sprintf(filename_write, "xmulti_%zu.raw", lod);
 		err = MPI_File_open(MPI_COMM_WORLD, filename_write, MPI_MODE_WRONLY | MPI_MODE_CREATE, MPI_INFO_NULL, &fout);
 		if(err) {
 			printf("Rank %d: ERROR opening file %s\n", rank, filename_write);
@@ -125,7 +125,7 @@ int main(int argc, char* argv[])
 		}
 		printf("File %s opened\n", filename_write);
 		if(rank==0)
-			printf("### LOD Level %d ###\n", lod);
+			printf("### LOD Level %zu ###\n", lod);
 		size_t new_no_b=0;
 		size_t *new_bpd = malloc(sizeof(size_t)*3);
 		new_bpd[0] = 0;
@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
 			printf("ERROR: Rank %d @ GetNewLOD()\n",rank);
 			MPI_Abort(MPI_COMM_WORLD,EXIT_FAILURE);
 		}
-		printf("Rank %d just finished LOD %d %d\n", rank, lod, new_no_b);
+		printf("Rank %d just finished LOD %zu %zu\n", rank, lod, new_no_b);
 		lod++;
 		free(new_bpd);
 		free(old_bpd);
