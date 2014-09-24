@@ -374,8 +374,8 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 						printf("GetGhostcells error\n");
 						return 1;
 					}
-					size_t b[3] = {brickX, brickY, brickZ};
-					ReorganiseArray(data, ghostcells, finalData, BSIZE, GDIM, GBSIZE, EDGE, b );
+					size_t b_local[3] = {brickX, brickY, brickZ};
+					ReorganiseArray(data, ghostcells, finalData, BSIZE, GDIM, GBSIZE, EDGE, b_local );
 					free(ghostcells);
 				}
 			}
