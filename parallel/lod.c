@@ -42,8 +42,10 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 			size_t new_b[3] = {b[0], b[1], b[2]-1};
 			size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-2*GDIM*GBSIZE*GBSIZE;
 			size_t line = 2*GDIM*GBSIZE*GBSIZE;
-			if(ReadLine(f, ghostcells, write_at, line, offset) != 0)
-			printf("error front gc\n");
+			if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+				printf("error front gc\n");
+				return 1;
+			}
 			write_at+=line;
 		} else {
 			size_t offset = READ_DATA_FROM+GDIM*GBSIZE*GBSIZE;
@@ -60,9 +62,11 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 			size_t new_b[3] = {b[0], b[1], b[2]+1};
 			size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE;
 			size_t line = 2*GDIM*GBSIZE*GBSIZE;
-			if(ReadLine(f, ghostcells, write_at, line, offset) != 0)
-			printf("error back gc\n");
-			write_at+=line;
+			if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+				printf("error back gc\n");
+				return 1;
+			}
+			write_at+=line;	
 		} else {
 			size_t offset = READ_DATA_FROM+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE;
 			size_t line = GDIM*GBSIZE*GBSIZE;
@@ -272,7 +276,7 @@ uint8_t CollapseVoxels(uint8_t *data, size_t b[3], const size_t GBSIZE)
 	for(size_t z=0; z<2; z++) {
 		for(size_t y=0; y<2; y++) {
 			for(size_t x=0; x<2; x++) {
-				out+=data[o+x+y*GBSIZE+z*GBSIZE*GBSIZE];
+				out+=data[o+x+y*2*GBSIZE+z*4*GBSIZE*GBSIZE];
 			}
 		}
 	}
@@ -286,7 +290,8 @@ size_t LowerLOD(MPI_File f, uint8_t *data, const size_t GBSIZE, size_t output_of
 		for(size_t y=0; y<GBSIZE; y++) {
 			for(size_t x=0; x<GBSIZE; x++) {
 				size_t small_b[3] = {x*2,y*2,z*2};
-				uint8_t out[1] = {CollapseVoxels(data, small_b, GBSIZE)};
+				uint8_t *out = malloc(sizeof(uint8_t));		
+				out[0] = CollapseVoxels(data, small_b, GBSIZE);
 				if(WriteBrick(f, out, 1, output_offset) != 0)
 					return 1;
 				output_offset++;
@@ -358,6 +363,7 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 			printf("Error@Get8Bricks()\n");
 			return 1;
 		}
+		printf("Rank %d get8bricks done\n", rank);
 		uint8_t *finalData = malloc(sizeof(uint8_t) * ((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*8);
 		for(size_t brickZ=0; brickZ<2; brickZ++) {
 			for(size_t brickY=0; brickY<2; brickY++) {
@@ -367,16 +373,19 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 					uint8_t *ghostcells = malloc(sizeof(uint8_t)*(2*GDIM*GBSIZE*GBSIZE + BSIZE*GDIM*2*GDIM*GBSIZE+BSIZE*BSIZE*2*GDIM));
 					size_t current_brick[3] = {brickX+b[0]*2,brickY+b[1]*2,brickZ+b[2]*2};
 					if(GetGhostcells(fin, data, READ_DATA_FROM, ghostcells, BSIZE, GDIM, GBSIZE, current_brick, last_bpd, EDGE) != 0) {
-					printf("GetGhostcells error\n");
-					return 1;
+						printf("GetGhostcells error\n");
+						return 1;
 					}
+					printf("Rank %d ghostcells done\n", rank);
 					size_t b[3] = {brickX, brickY, brickZ};
 					ReorganiseArray(data, ghostcells, finalData, BSIZE, GDIM, GBSIZE, EDGE, b );
 					free(ghostcells);
+					printf("Rank %d reorganise array done\n", rank);
 				}
 			}
 		}
 	LowerLOD(fout, finalData, GBSIZE, no_b*GBSIZE*GBSIZE*GBSIZE);
+	printf("Rank %d lowerlod done\n", rank);
 	free(data);
 	free(finalData);
 	}
