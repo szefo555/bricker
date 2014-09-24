@@ -323,7 +323,6 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 		mybricks=bricks[0];
 		mystart=starting_brick[0];
 		for(int i=1; i<s; i++) {
-			printf("====%zu %zu\n",starting_brick[i], bricks[i]);
 			if(MPI_Send(&bricks[i], 1, MPI_UNSIGNED, i, 42, MPI_COMM_WORLD) != MPI_SUCCESS) {
 				fprintf(stderr, "ERROR sending # of blocks\n");
 				return 1;
@@ -363,7 +362,6 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 			printf("Error@Get8Bricks()\n");
 			return 1;
 		}
-		printf("Rank %d get8bricks done\n", rank);
 		uint8_t *finalData = malloc(sizeof(uint8_t) * ((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*8);
 		for(size_t brickZ=0; brickZ<2; brickZ++) {
 			for(size_t brickY=0; brickY<2; brickY++) {
@@ -376,11 +374,9 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 						printf("GetGhostcells error\n");
 						return 1;
 					}
-					printf("Rank %d ghostcells done\n", rank);
 					size_t b[3] = {brickX, brickY, brickZ};
 					ReorganiseArray(data, ghostcells, finalData, BSIZE, GDIM, GBSIZE, EDGE, b );
 					free(ghostcells);
-					printf("Rank %d reorganise array done\n", rank);
 				}
 			}
 		}
