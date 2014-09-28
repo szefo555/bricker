@@ -23,7 +23,7 @@ size_t NBricks(size_t *VOLUME, const size_t BRICKSIZE, size_t *bdim)
 }
 
 /* check if brick is at any edge (aka no ghostcells) 
-  eg top left brick in ^3 volue has ALWAYS left, top and front edge */
+  eg top left brick in ^3 volume has ALWAYS left, top and front edge */
 void CheckEdge(size_t b[3], int edge[6], const size_t GDIM, size_t *VOLUME, const size_t BRICKSIZE, int src[3]) {
 	/* left top front */
 	for(size_t i=0; i<3; i++) {
@@ -71,7 +71,7 @@ size_t WriteBrick(MPI_File f, uint8_t *data, size_t length, size_t off)
 
 
 /* Read from a file */
-size_t ReadLine(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
+size_t ReadFromFile(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 {
 	MPI_Offset o = (int)off;
 	MPI_File_seek(f, o, MPI_SEEK_SET);
@@ -84,4 +84,9 @@ size_t ReadLine(MPI_File f, uint8_t *data, size_t cur, size_t LINE, size_t off)
 		return 1;
 	}
 	return 0;
+}
+
+void PrintHelp()
+{
+	printf("\n\tYou can run the program with\n\n\t./bricker x y z b g filename\n\n\tx - Size of the volume in x dimension\n\ty - Size of the volume in y dimension\n\tz - Size of the volume in z dimension\n\tb - Bricksize without ghostcells\n\tg - Number of ghostcells for one side, eg 2 would equal 4 ghostcells total in every dimension\n\tfilename - Path to the .raw file you wish to brick\n\n\tPlease note that only ghostcells that are powers of 2 are supported.\n\n"); 
 }

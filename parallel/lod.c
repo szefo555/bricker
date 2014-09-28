@@ -6,7 +6,7 @@
 #include <string.h>
 #include <mpi.h>
 #include "misc.h"
-#include "mpi_init.h"
+#include "send_settings.h"
 
 /* read 8 bricks needed for next LOD 
   every brick could be loaded seperatly, but this makes 
@@ -20,8 +20,9 @@ size_t Get8Bricks(MPI_File fin, uint8_t *data, size_t b[3], size_t last_bpd[3], 
 				size_t current_brick[3] = {b[0]*2+brickX, b[1]*2+brickY, b[2]*2+brickZ};
 				size_t current_id = GetBrickId(current_brick, last_bpd);
 				size_t offset = current_id*GBSIZE*GBSIZE*GBSIZE;
-				if(ReadLine(fin, data, write_offset, GBSIZE*GBSIZE*GBSIZE, offset) != 0) {
-					printf("ReadLine error\n");
+				/* in this case ReadFromFile() actually reads a whole brick (GBSIZE^3) */
+				if(ReadFromFile(fin, data, write_offset, GBSIZE*GBSIZE*GBSIZE, offset) != 0) {
+					printf("ReadFromFile error\n");
 					return 1;
 				}
 				write_offset+=GBSIZE*GBSIZE*GBSIZE;
@@ -35,6 +36,8 @@ size_t Get8Bricks(MPI_File fin, uint8_t *data, size_t b[3], size_t last_bpd[3], 
 /* get ghostcells for current brick. if brick is at an edge, duplicate cells at edge */
 size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uint8_t *ghostcells, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, size_t b[3], size_t old_bpd[3], const size_t EDGE[6])
 {
+	if(GDIM==0)
+		return 0;
 	size_t write_at = 0;
 	/* front */
 	if(EDGE[4]==1&&GDIM>0) {
@@ -42,7 +45,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 			size_t new_b[3] = {b[0], b[1], b[2]-1};
 			size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+GBSIZE*GBSIZE*GBSIZE-GDIM*GBSIZE*GBSIZE-2*GDIM*GBSIZE*GBSIZE;
 			size_t line = 2*GDIM*GBSIZE*GBSIZE;
-			if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+			if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 				printf("error front gc\n");
 				return 1;
 			}
@@ -62,7 +65,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 			size_t new_b[3] = {b[0], b[1], b[2]+1};
 			size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE;
 			size_t line = 2*GDIM*GBSIZE*GBSIZE;
-			if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+			if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 				printf("error back gc\n");
 				return 1;
 			}
@@ -85,7 +88,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 					size_t new_b[3] = {b[0], b[1]-1, b[2]};
 					size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE + z*GBSIZE*GBSIZE+GBSIZE*GBSIZE-GDIM*GBSIZE-2*GDIM*GBSIZE;
 					size_t line = 2*GDIM*GBSIZE;
-					if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+					if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 						printf("error top gc\n");
 						return 1;
 					}
@@ -105,7 +108,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 					size_t new_b[3] = {b[0], b[1]+1, b[2]};
 					size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+GDIM*GBSIZE;
 					size_t line = 2*GDIM*GBSIZE;
-					if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+					if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 						printf("error bot gc\n");
 						return 1;
 					}
@@ -129,7 +132,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 					size_t new_b[3] = {b[0]-1, b[1], b[2]};
 					size_t offset = GetBrickId(new_b, old_bpd)*GBSIZE*GBSIZE*GBSIZE+GDIM*GBSIZE*GBSIZE+z*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
 					size_t line = 2*GDIM;
-					if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+					if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 						printf("error left gc\n");
 						return 1;
 					}
@@ -149,7 +152,7 @@ size_t GetGhostcells(MPI_File f, uint8_t *data, const size_t READ_DATA_FROM, uin
 					size_t ob[3] = {b[0]+1, b[1], b[2]};
 					size_t offset = GetBrickId(ob, old_bpd)*GBSIZE*GBSIZE*GBSIZE+(GDIM+z)*GBSIZE*GBSIZE+y*GBSIZE+GBSIZE-GDIM-2*GDIM;
 					size_t line = 2*GDIM;
-					if(ReadLine(f, ghostcells, write_at, line, offset) != 0) {
+					if(ReadFromFile(f, ghostcells, write_at, line, offset) != 0) {
 						printf("error right gc \n");
 						return 1;
 					}
@@ -183,28 +186,21 @@ how it should look after reorganisation (small letters are cells of bricks, g = 
 	gc gc gc gc gd gd gd gd
 	gc gc gc gc gd gd gd gd 
 
-desired end product:
-	g g g
-	g N g
-	g g g
-where N = new brick of constant size (= Bricksize + 2*ghostcelldimension)
 */
 
 void ReorganiseArray(uint8_t *data, uint8_t *ghostcells, uint8_t *finalData, const size_t BSIZE, const size_t GDIM, const size_t GBSIZE, const size_t EDGE[6], size_t b[3])
 {
 	const size_t ID = b[0]+b[1]*2+b[2]*4;
-	size_t helper = ((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4;
-	size_t front[4] = {
+	size_t frontback[8] = {
 		0,
 		GBSIZE,
 		2*GBSIZE*GBSIZE,
-		2*GBSIZE*GBSIZE+GBSIZE};
-	size_t back[4] = {
-		2*helper-8*GDIM*GBSIZE*GBSIZE, 
-		2*helper-8*GDIM*GBSIZE*GBSIZE+GBSIZE, 
-		2*helper-8*GDIM*GBSIZE*GBSIZE+2*GBSIZE*GBSIZE, 
-		2*helper-8*GDIM*GBSIZE*GBSIZE+2*GBSIZE*GBSIZE+GBSIZE};
-	size_t top[8] = {
+		2*GBSIZE*GBSIZE+GBSIZE,
+		2*(((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4)-8*GDIM*GBSIZE*GBSIZE, 
+		2*(((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4)-8*GDIM*GBSIZE*GBSIZE+GBSIZE, 
+		2*(((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4)-8*GDIM*GBSIZE*GBSIZE+2*GBSIZE*GBSIZE, 
+		2*(((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4)-8*GDIM*GBSIZE*GBSIZE+2*GBSIZE*GBSIZE+GBSIZE};
+	size_t topbot[8] = {
 		4*2*GDIM*GBSIZE*GBSIZE,
 		4*2*GDIM*GBSIZE*GBSIZE+GBSIZE,
 		4*2*GDIM*GBSIZE*GBSIZE+4*GDIM*GBSIZE+4*GBSIZE*BSIZE,
@@ -213,37 +209,30 @@ void ReorganiseArray(uint8_t *data, uint8_t *ghostcells, uint8_t *finalData, con
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+GBSIZE,
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+ 4*GDIM*GBSIZE+4*GBSIZE*BSIZE,
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+ 4*GDIM*GBSIZE+4*GBSIZE*BSIZE+GBSIZE};
-	size_t left[8] = {
-		top[0]+2*(GBSIZE*2*GDIM),
-		top[0]+2*(GBSIZE*2*GDIM)+2*GDIM+2*BSIZE,
-		top[0]+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE),
-		top[0]+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE)+2*GDIM+2*BSIZE,
+	size_t leftright[8] = {
+		topbot[0]+2*(GBSIZE*2*GDIM),
+		topbot[0]+2*(GBSIZE*2*GDIM)+2*GDIM+2*BSIZE,
+		topbot[0]+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE),
+		topbot[0]+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE)+2*GDIM+2*BSIZE,
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+2*(GBSIZE*2*GDIM),
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+2*(GBSIZE*2*GDIM)+2*GDIM+2*BSIZE,
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE),
 		((GBSIZE*GBSIZE+GBSIZE*BSIZE+BSIZE*BSIZE)*2*GDIM+BSIZE*BSIZE*BSIZE)*4+2*(GBSIZE*2*GDIM)+BSIZE*(2*2*GDIM+2*BSIZE)+2*GDIM+2*BSIZE
 	};
 	size_t data_start[8] = {
-		left[0]+2*GDIM,
-		left[0]+2*GDIM+BSIZE,
-		left[2]+2*GDIM,
-		left[2]+2*GDIM+BSIZE,
-		left[4]+2*GDIM,
-		left[4]+2*GDIM+BSIZE,
-		left[6]+2*GDIM,
-		left[6]+2*GDIM+BSIZE};
-	size_t ct = 0;
+		leftright[0]+2*GDIM,
+		leftright[0]+2*GDIM+BSIZE,
+		leftright[2]+2*GDIM,
+		leftright[2]+2*GDIM+BSIZE,
+		leftright[4]+2*GDIM,
+		leftright[4]+2*GDIM+BSIZE,
+		leftright[6]+2*GDIM,
+		leftright[6]+2*GDIM+BSIZE};
 	for(size_t z=0 ;z<2*GDIM; z++) {
 		for(size_t y=0; y<GBSIZE; y++) {
 			/*FRONT*/
-			if(EDGE[4]==1) {
-				memcpy(&finalData[front[ID]+z*4*GBSIZE*GBSIZE+y*2*GBSIZE], &ghostcells[z*GBSIZE*GBSIZE+y*GBSIZE], GBSIZE);
-				ct+=GBSIZE;
-			}
-			/*BACK*/
-			if(EDGE[5]==1) {
-				memcpy(&finalData[back[ID-4]+z*4*GBSIZE*GBSIZE+y*2*GBSIZE], &ghostcells[z*GBSIZE*GBSIZE+y*GBSIZE], GBSIZE);
-				ct+=GBSIZE;
+			if((EDGE[4]==1 || EDGE[5]==1) && GDIM>0) {
+				memcpy(&finalData[frontback[ID]+z*4*GBSIZE*GBSIZE+y*2*GBSIZE], &ghostcells[z*GBSIZE*GBSIZE+y*GBSIZE], GBSIZE);
 			}
 		}
 	}
@@ -251,18 +240,16 @@ void ReorganiseArray(uint8_t *data, uint8_t *ghostcells, uint8_t *finalData, con
 		for(size_t y=0; y<GBSIZE+2*GDIM; y++) {
 			/* TOP && BOTTOM */
 			if((EDGE[2]==1 || EDGE[3]==1) && y<2*GDIM) {
-			memcpy(&finalData[top[ID]+z*4*GBSIZE*GBSIZE+y*2*GDIM*GBSIZE], &ghostcells[2*GDIM*GBSIZE*GBSIZE+z*2*GDIM*GBSIZE+y*GDIM*GBSIZE], GBSIZE);
-			ct+=GBSIZE;
+			memcpy(&finalData[topbot[ID]+z*4*GBSIZE*GBSIZE+y*2*GDIM*GBSIZE], &ghostcells[2*GDIM*GBSIZE*GBSIZE+z*2*GDIM*GBSIZE+y*GDIM*GBSIZE], GBSIZE);
 			}
 			/* LEFT && RIGHT */
 			if((EDGE[0]==1 || EDGE[1]==1) && y>=2*GDIM && y<2*GDIM+BSIZE) {
-			memcpy(&finalData[left[ID]+z*((2*2*GDIM+2*BSIZE)*2*BSIZE+2*(2*2*GDIM*GBSIZE))+(y-2*GDIM)*2*GDIM*GBSIZE], &ghostcells[2*GDIM*GBSIZE*GBSIZE+2*GDIM*GBSIZE*BSIZE+z*2*GDIM*2*GDIM+(y-2*GDIM)*2*GDIM], 2*GDIM);
-			ct+=2*GDIM;
+			memcpy(&finalData[leftright[ID]+z*((2*2*GDIM+2*BSIZE)*2*BSIZE+2*(2*2*GDIM*GBSIZE))+(y-2*GDIM)*2*GDIM*GBSIZE], &ghostcells[2*GDIM*GBSIZE*GBSIZE+2*GDIM*GBSIZE*BSIZE+z*2*GDIM*2*GDIM+(y-2*GDIM)*2*GDIM], 2*GDIM);
 			}
 			/* DATA */
 			if(y>=2*GDIM && y<2*GDIM+BSIZE) {
-			memcpy(&finalData[data_start[ID]+z*((2*2*GDIM+2*BSIZE)*2*BSIZE+2*(2*2*GDIM*GBSIZE))+(y-2*GDIM)*2*GDIM*GBSIZE], &data[ID*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+(y+GDIM-2*GDIM)*GBSIZE+GDIM], BSIZE);
-			ct+=BSIZE;
+			memcpy(&finalData[data_start[ID]+z*((2*2*GDIM+2*BSIZE)*2*BSIZE+2*(2*2*GDIM*GBSIZE))+(y-2*GDIM)*(2*BSIZE+4*GDIM)], &data[ID*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+(y+GDIM-2*GDIM)*GBSIZE+GDIM], BSIZE);
+			/*printf("%zu : %zu %d\n", ID, data_start[ID]+z*((2*2*GDIM+2*BSIZE)*2*BSIZE+2*(2*2*GDIM*GBSIZE))+(y-2*GDIM)*(2*BSIZE+2*GDIM), ID*GBSIZE*GBSIZE*GBSIZE+(z+GDIM)*GBSIZE*GBSIZE+(y+GDIM-2*GDIM)*GBSIZE+GDIM);*/
 			}
 		} 
 	}
@@ -278,7 +265,7 @@ uint8_t CollapseVoxels(uint8_t *data, size_t b[3], const size_t GBSIZE)
 			for(size_t x=0; x<2; x++) {
 				out+=data[o+x+y*2*GBSIZE+z*4*GBSIZE*GBSIZE];
 			}
-		}
+		}	
 	}
 	return (uint8_t)out/8;
 }
@@ -352,7 +339,6 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 	}
 	if(mybricks==0)
 		return 0;
-	printf("Rank %d / Mystart %zu / Mybricks %zu\n", rank, mystart, mybricks);
 	/* for each new brick */
 	for(size_t no_b=mystart; no_b < mystart+mybricks; no_b++) {
 		size_t b[3];
@@ -380,8 +366,8 @@ size_t GetNewLOD(MPI_File fin, MPI_File fout, size_t *old_bpd, size_t *current_b
 				}
 			}
 		}
+
 	LowerLOD(fout, finalData, GBSIZE, no_b*GBSIZE*GBSIZE*GBSIZE);
-	printf("Rank %d lowerlod done\n", rank);
 	free(data);
 	free(finalData);
 	}

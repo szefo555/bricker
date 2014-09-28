@@ -7,7 +7,6 @@
 #include <mpi.h>
 #include "misc.h"
 
-/* edge2 right, bot, back */
 size_t ReadFile(MPI_File f, size_t *VOLUME, uint8_t *data, int src[3], const size_t GBSIZE, int edge[6])
 {
 	size_t cur = 0;
@@ -16,13 +15,6 @@ size_t ReadFile(MPI_File f, size_t *VOLUME, uint8_t *data, int src[3], const siz
 	for(size_t z=0; z<GBSIZE; z++) {
 		for(size_t y=0; y<GBSIZE; y++) {
 			edge[1] = ORIG_RIGHT;
-			/* y_edge top GHOSTCELLS */
-			if(edge[2] > 0 && (int)y < edge[2] && src[1]>0)
-				src[1]--;
-			/* y_edge bot NO GHOSTCELLS */
-			if(edge[3] > 0 && src[1] >= (int)VOLUME[1]) {
-				src[1]--;
-			}
 			/* z_edge back NO GHOSTCELLS */
 			if(src[2] >= (int)VOLUME[2]) {
 				src[2]--;
@@ -80,9 +72,6 @@ size_t ReadFile(MPI_File f, size_t *VOLUME, uint8_t *data, int src[3], const siz
 size_t brick(MPI_File fin, MPI_File fout, size_t mystart, size_t mybricks, const size_t GBSIZE, const size_t GDIM, const size_t BSIZE, size_t *VOLUME, size_t *bpd)
 {
 	for(size_t no_b=mystart; no_b<mystart+mybricks; no_b++) {
-		/* offset for output file */
-		int output_file_offset = (int)(no_b*GBSIZE*GBSIZE*GBSIZE);
-		MPI_File_seek(fout, output_file_offset, MPI_SEEK_SET);
 		/* coordinates of current brick */
 		size_t b[3];
 		GetBrickCoordinates(b,bpd,no_b);

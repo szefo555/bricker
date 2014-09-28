@@ -7,18 +7,23 @@
 #include <mpi.h>
 #include "brick.h"
 #include "lod.h"
-#include "mpi_init.h"
+#include "send_settings.h"
 #include "misc.h"
 
 int main(int argc, char* argv[])
 {
+	double init_time, brick_time, lod_time;
+	double start_time = 0;
 	MPI_Init(&argc,&argv);
 	int size,rank;
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-	if(argc!=7) {
-		printf("Check input\n");
+	if(rank==0) {
+		start_time = MPI_Wtime();
+	}	
+	if(argc!=7 || strcmp(argv[1],"-h") == 0 || strcmp(argv[1],"--help") == 0) {
+		if(rank==0)
+			PrintHelp();
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);	
 	}
 	char *endptr = NULL;
@@ -27,23 +32,22 @@ int main(int argc, char* argv[])
 	VOLUME[0]=(size_t)strtol(argv[1], &endptr, 10);
 	VOLUME[1]=(size_t)strtol(argv[2], &endptr, 10);
 	VOLUME[2]=(size_t)strtol(argv[3], &endptr, 10);
-	/* Dimension of the brick incl. ghostcell */
-	const size_t BRICKDIM = (size_t)strtol(argv[4], &endptr, 10);
-	/* Size of ghost cells for later subtraction */
-	const size_t GHOSTCELLDIM = (size_t)strtol(argv[5], &endptr, 10);
-	/* subtract size of ghostcells*2 to get "real" size of bricks */
-	const size_t BRICKSIZE = BRICKDIM - GHOSTCELLDIM*2;
+	/* Dimension of the brick excl. Ghostcells */
+	const size_t BRICKSIZE = (size_t)strtol(argv[4], &endptr, 10);
 	if(BRICKSIZE<1) {
 		printf("BRICKSIZE is smaller than 1!\n");
-		return EXIT_FAILURE;
+		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
+	/* Size of ghost cells for later subtraction */
+	const size_t GHOSTCELLDIM = (size_t)strtol(argv[5], &endptr, 10);
+
 	/* # bricks per dimension */
 	size_t bricks_per_dimension[3];
 	/* number of bricks? */
 	size_t numberofbricks = NBricks(VOLUME, BRICKSIZE, bricks_per_dimension);
 	if(numberofbricks == 0) {
 		printf("ERROR determining number of bricks!\n");
-		return EXIT_FAILURE;
+		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
 
 	/* INITIALIZATION */
@@ -58,10 +62,12 @@ int main(int argc, char* argv[])
 		printf("ERROR @ Init_MPI\n");
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
-	printf("RANK: %d BRICKS: %zu OFFSET_X %zu OFFSET_Y %zu OFFSET_Z %zu\n", rank, mybricks, myoffsets[0], myoffsets[1], myoffsets[2]);
-
+	if(rank==0) {
+		init_time = MPI_Wtime();
+		init_time -= start_time;
+		start_time = MPI_Wtime();
+	}
 	/* BRICKING START */
-
 	/* input file stream */
 	MPI_File fpi;
 	int err;
@@ -86,9 +92,13 @@ int main(int argc, char* argv[])
 		printf("ERROR @ Rank %d: brick() failed \n", rank);
 		MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 	}
-	printf("RANK %d has just finished bricking\n", rank);
 	MPI_File_close(&fpi);
 	MPI_File_close(&fpo);
+	if(rank==0) {
+		brick_time = MPI_Wtime();
+		brick_time -= start_time;
+		start_time = MPI_Wtime();
+	}
 	/* END OF BRICKING */
 
 	size_t lod = 1;
@@ -104,7 +114,6 @@ int main(int argc, char* argv[])
 				printf("Rank %d: ERROR opening file %s\n", rank, fn);
 				MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 			}
-			printf("File %s opened\n", fn);
 		} else {
 			char filename_read[256];
 			sprintf(filename_read, "xmulti_%zu.raw", lod-1);
@@ -113,7 +122,6 @@ int main(int argc, char* argv[])
 				printf("Rank %d: ERROR opening file %s\n", rank, fn);
 				MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 			}
-			printf("File %s opened\n", filename_read);
 		}
 		/* write to */
 		char filename_write[256];
@@ -123,9 +131,6 @@ int main(int argc, char* argv[])
 			printf("Rank %d: ERROR opening file %s\n", rank, filename_write);
 			MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
 		}
-		printf("File %s opened\n", filename_write);
-		if(rank==0)
-			printf("### LOD Level %zu ###\n", lod);
 		size_t new_no_b=0;
 		size_t *new_bpd = malloc(sizeof(size_t)*3);
 		new_bpd[0] = 0;
@@ -146,7 +151,6 @@ int main(int argc, char* argv[])
 			printf("ERROR: Rank %d @ GetNewLOD()\n",rank);
 			MPI_Abort(MPI_COMM_WORLD,EXIT_FAILURE);
 		}
-		printf("Rank %d just finished LOD %zu %zu\n", rank, lod, new_no_b);
 		lod++;
 		free(new_bpd);
 		free(old_bpd);
@@ -154,6 +158,11 @@ int main(int argc, char* argv[])
 		MPI_File_close(&fout);
 		if(new_no_b<2)
 			finished=true;
+	}
+	if(rank==0) {
+		lod_time = MPI_Wtime();
+		lod_time -= start_time;
+		printf("Initialization: %1.3f || Bricking: %1.3f || LOD: %1.3f\n",init_time, brick_time, lod_time);
 	}
 	free(myoffsets);
 	free(VOLUME);
